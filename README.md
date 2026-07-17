@@ -42,6 +42,9 @@ This application manages graduation event ticketing and on-site check-in. It wil
 | `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` | Public | Supabase publishable key. Pending setup. |
 | `SUPABASE_SERVICE_ROLE_KEY` | Server secret | Supabase service-role key. Server-only. Never expose to the browser. |
 | `TICKET_TOKEN_SECRET` | Server secret | Random secret used to sign ticket tokens. Generate with `node -e "console.log(require('crypto').randomBytes(48).toString('base64'))"`. |
+| `ALLOW_DESTRUCTIVE_DEV_RESET` | Server | Must stay `false` except while intentionally running a development reset. |
+| `DEV_RESET_CONFIRMATION` | Server | Must stay empty except while intentionally running a development reset. |
+| `MOCK_EVENT_CODE` | Server | Fixed to `GRAD-2026-DEV`. The reset tooling refuses any other value. |
 
 The application builds and runs before the Supabase values are added. Supabase-dependent features raise clear errors until configuration is complete.
 
@@ -56,6 +59,74 @@ The application builds and runs before the Supabase values are added. Supabase-d
 | `npm run typecheck` | Run the TypeScript compiler with no output. |
 | `npm run test` | Run the Vitest suite once. |
 | `npm run test:watch` | Run tests in watch mode. |
+
+## Supabase CLI and Database
+
+The Supabase CLI is installed as a project development dependency. Run it
+with `npx supabase <command>`. The repository is initialized with
+`supabase/config.toml`. Do not link or push to a remote project until a
+dedicated development project is ready.
+
+- Migrations live in `supabase/migrations/`. The initial check-in schema is
+  `supabase/migrations/*_create_graduation_checkin_schema.sql`.
+- The generated development seed lives in `supabase/seed.sql`. It contains
+  fictional data only and is regenerated, never edited by hand.
+- Database TypeScript types live in `src/types/database.ts`. After the
+  migration is deployed to a linked Supabase project, regenerate them with
+  the Supabase CLI type generator so they always match the live schema.
+
+### Local Supabase commands (require Docker)
+
+| Command | Description |
+| --- | --- |
+| `npm run supabase:start` | Start the local Supabase stack. |
+| `npm run supabase:stop` | Stop the local Supabase stack. |
+| `npm run supabase:status` | Show local stack status. |
+| `npm run supabase:reset` | Recreate the local database from migrations and seed. |
+
+### Mock-data commands
+
+| Command | Description |
+| --- | --- |
+| `npm run db:generate:seed` | Regenerate `supabase/seed.sql` from `scripts/mock-data/fixtures.ts`. |
+| `npm run db:validate:mock` | Validate that the fixtures are fictional, consistent and complete. |
+| `npm run db:seed:mock` | Idempotently upsert the mock event, 20 registrations and guests into the configured database. |
+| `npm run db:reset:mock` | Guarded destructive reset: delete the `GRAD-2026-DEV` test event (cascades) and reseed. |
+| `npm run db:reset:mock-checkins` | Guarded destructive reset of check-in rows for the test event only. |
+
+All mock data is visibly fictional: `Test Graduate 001` style names,
+`example.com` emails, `416555` test phone numbers and `MOCK-` source IDs.
+Every mock record is marked `is_test: true`.
+
+### Reset safeguards
+
+```text
+Never enable destructive reset variables in a production environment.
+```
+
+The destructive commands refuse to run unless every guard passes, and they
+can only target the fictional `GRAD-2026-DEV` event after verifying in the
+database that it is marked `is_test: true`. There is no delete-all command,
+no arbitrary event reset and no production reset command.
+
+To run a development reset, set exactly this configuration in `.env.local`:
+
+```env
+APP_ENV=development
+ALLOW_DESTRUCTIVE_DEV_RESET=true
+DEV_RESET_CONFIRMATION=RESET_GRADUATION_CHECKIN_DEV_DATA
+MOCK_EVENT_CODE=GRAD-2026-DEV
+```
+
+Return the flags to their safe values immediately after reset testing:
+
+```env
+ALLOW_DESTRUCTIVE_DEV_RESET=false
+DEV_RESET_CONFIRMATION=
+```
+
+Further detail: `docs/database/checkin-schema.md` and
+`docs/database/registration-import-mapping.md`.
 
 ## Data-Protection Rules
 
@@ -83,15 +154,15 @@ Supabase credentials have not been added yet. Add `NEXT_PUBLIC_SUPABASE_URL`, `N
 - Landing page with development status: complete
 - Health endpoint (`GET /api/health`): complete
 - Automated tests: complete
-- Supabase credentials: pending
-- Mock data: not loaded
+- CHECKIN-02 database schema migration and mock-data tooling: complete
+- Remote Supabase project connection and migration deployment: pending
+- Real registration import (CHECKIN-03): not started
+- Staff authentication and RLS policies (CHECKIN-04): not started
 - QR ticket generation: not started
 - Check-in scanner: not started
 
-## Planned Next Features
+## Planned Next Ticket
 
-1. Supabase schema and mock development data
-2. Graduate and guest registration views
-3. Secure QR ticket generation and delivery
-4. Staff scanner and check-in dashboard
-5. Reporting for event attendance
+CHECKIN-03: real registration import from the Excel export, including
+preview and approval. Later tickets cover staff authentication (CHECKIN-04),
+QR ticket generation and delivery, scanning and reporting.
