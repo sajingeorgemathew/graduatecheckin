@@ -21,6 +21,9 @@ _reference/
 *.xls
 *.csv
 
+# Local-only temporary files, including generated mock workbooks
+tmp/
+
 # Logs
 npm-debug.log*
 yarn-debug.log*

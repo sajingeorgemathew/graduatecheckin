@@ -42,6 +42,7 @@ This application manages graduation event ticketing and on-site check-in. It wil
 | `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` | Public | Supabase publishable key. Pending setup. |
 | `SUPABASE_SERVICE_ROLE_KEY` | Server secret | Supabase service-role key. Server-only. Never expose to the browser. |
 | `TICKET_TOKEN_SECRET` | Server secret | Random secret used to sign ticket tokens. Generate with `node -e "console.log(require('crypto').randomBytes(48).toString('base64'))"`. |
+| `ENABLE_DEV_IMPORTS` | Server | Development-only gate for the Excel import workflow. Must stay `false` outside local development. Never enable in production. |
 | `ALLOW_DESTRUCTIVE_DEV_RESET` | Server | Must stay `false` except while intentionally running a development reset. |
 | `DEV_RESET_CONFIRMATION` | Server | Must stay empty except while intentionally running a development reset. |
 | `MOCK_EVENT_CODE` | Server | Fixed to `GRAD-2026-DEV`. The reset tooling refuses any other value. |
@@ -89,6 +90,7 @@ dedicated development project is ready.
 | Command | Description |
 | --- | --- |
 | `npm run db:generate:seed` | Regenerate `supabase/seed.sql` from `scripts/mock-data/fixtures.ts`. |
+| `npm run db:generate:mock-import` | Generate the fictional import workbook at `tmp/mock-registration-import.xlsx` for import testing. |
 | `npm run db:validate:mock` | Validate that the fixtures are fictional, consistent and complete. |
 | `npm run db:seed:mock` | Idempotently upsert the mock event, 20 registrations and guests into the configured database. |
 | `npm run db:reset:mock` | Guarded destructive reset: delete the `GRAD-2026-DEV` test event (cascades) and reseed. |
@@ -128,6 +130,141 @@ DEV_RESET_CONFIRMATION=
 Further detail: `docs/database/checkin-schema.md` and
 `docs/database/registration-import-mapping.md`.
 
+## Excel Registration Import (CHECKIN-03)
+
+The application imports registration workbooks through a reviewed,
+development-only workflow.
+
+```text
+Do not enable the import interface in production until staff
+authentication is implemented.
+```
+
+### Development-only access rule
+
+The import pages under `/admin/imports` and every import API route operate
+only when both of these are set:
+
+```env
+APP_ENV=development
+ENABLE_DEV_IMPORTS=true
+```
+
+When either condition is false, the pages show a disabled state, mutation
+endpoints reject requests, no spreadsheet parsing occurs and no import
+records are created. Never add `ENABLE_DEV_IMPORTS=true` to a production
+environment such as Vercel Production. Staff authentication arrives in
+CHECKIN-04 and is the next required security ticket before any production
+import access.
+
+The import target event is fixed server-side to `GRAD-2026-DEV`. Event
+codes are never accepted from the browser.
+
+### Import architecture
+
+Logic lives in feature modules under `src/features/imports/`:
+
+| Module | Responsibility |
+| --- | --- |
+| `constants.ts` | Expected headers, size limits, fixed event code. |
+| `access.ts` | Development-only access gate. |
+| `workbook-parser.ts` | In-memory XLSX reading and file validation. |
+| `header-mapper.ts` | Header matching and worksheet selection. |
+| `normalizers.ts` | Strict per-cell normalization. |
+| `validators.ts` | Row and workbook validation. |
+| `comparison.ts` | New, update, unchanged and missing-row comparison. |
+| `repository.ts` | Service-role database access. |
+| `service.ts` | Upload, preview, row toggling and cancel workflows. |
+| `apply.ts` | Confirmation and atomic apply invocation. |
+| `summaries.ts` | Counts, snapshots and display masking. |
+
+Route handlers in `src/app/api/admin/imports/` stay thin and delegate to
+these modules. Import responses use `no-store` caching and structured
+errors without stack traces.
+
+### Expected Excel headers
+
+The importer recognizes exactly these source headers, matched by trimmed
+name and never by column position:
+
+```text
+order_id, order_date, status, Email, Full Name, Graduation Gown Size,
+Name Pronunciation, Phone Number, Guest 1, Guest 2, Kids (0 to 4),
+Kids (4 to 10), fee_total, fee_tax_total, tax_total, order_total
+```
+
+Only `.xlsx` files up to 10 MB are accepted. The first worksheet containing
+all required headers is selected. Unexpected columns are reported as
+notices and ignored. The source column `Kids (4 to 10)` is normalized into
+the approved `children aged 5 to 10` category, and an import notice
+explains this.
+
+### Preview workflow
+
+1. Upload a workbook at `/admin/imports/new`. The file is hashed
+   (SHA-256), parsed entirely in memory and never retained. Only the
+   filename, size and hash are stored.
+2. Every row is normalized and validated. Each row receives one result:
+   new, update, unchanged, warning, error or excluded.
+3. The preview at `/admin/imports/[importId]` shows summary cards,
+   filters, a paginated table (25 rows per page) with masked phone
+   numbers, expandable row details, and existing registrations that are
+   missing from the upload.
+4. Rows with errors are automatically excluded and cannot be applied.
+   Warning rows stay included unless explicitly excluded. Rows can be
+   excluded and re-included before applying.
+5. Applying requires typing the confirmation text `APPLY IMPORT`. The
+   apply button prevents double submission and uses an idempotency key.
+
+### Safe upsert behavior
+
+Applying an import runs the atomic database function
+`public.apply_registration_import`, which:
+
+- Matches existing registrations by event, source system and source
+  registration ID (the `order_id`). Name and email are never identifiers.
+- Preserves existing registration UUIDs, tickets and check-in history.
+- Updates only approved registration fields and replaces the optional
+  adult guest-name rows with the imported values.
+- Never deletes registrations or events and never creates tickets or
+  check-ins.
+- Marks the import applied. An applied import cannot be edited or
+  reapplied.
+
+### Duplicate file protection
+
+The SHA-256 hash is calculated before parsing. If an identical file has
+already been applied to the same event, the new attempt is recorded as a
+duplicate, the previous application date and summary are shown and no
+registration changes occur. Uploading a changed workbook with a different
+hash remains allowed.
+
+### Missing-row behavior
+
+Existing registrations absent from the latest upload are listed as
+"Missing from uploaded file" with a count. They are never deleted,
+cancelled or changed and tickets are never revoked. No automatic action
+occurs.
+
+### Mock workbook generation
+
+`npm run db:generate:mock-import` writes a fictional workbook to
+`tmp/mock-registration-import.xlsx` with 27 rows covering valid rows,
+update and unchanged candidates, failed status, missing email, invalid
+phone, duplicate emails, a duplicate order ID, child count scenarios, a
+tax mismatch, an unknown status, a multi-name guest cell and an extra
+unexpected column. The `tmp/` folder is ignored by Git and generated
+workbooks must never be committed.
+
+### Manual migration deployment
+
+The import schema lives in
+`supabase/migrations/*_create_registration_import_pipeline.sql`. It has
+not been pushed automatically. Deploy it manually when ready, for example
+with `npx supabase db push` against the linked project, after reviewing
+the migration. The migration only adds new objects and does not modify the
+applied CHECKIN-02 schema.
+
 ## Data-Protection Rules
 
 Production student information must not be used during application development.
@@ -144,7 +281,12 @@ Production student information must not be used during application development.
 
 ## Supabase Setup Status
 
-Supabase credentials have not been added yet. Add `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` and `SUPABASE_SERVICE_ROLE_KEY` to `.env.local` when the Supabase project is ready. The health endpoint at `/api/health` reports `supabaseConfigured` based on the presence of the public values.
+The application connects to a hosted Supabase project through
+`NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` and
+`SUPABASE_SERVICE_ROLE_KEY` in `.env.local`. The health endpoint at
+`/api/health` reports `supabaseConfigured` based on the presence of the
+public values. The CHECKIN-02 schema migration is deployed; the CHECKIN-03
+import migration awaits manual deployment.
 
 ## Current Implementation Status
 
@@ -155,14 +297,16 @@ Supabase credentials have not been added yet. Add `NEXT_PUBLIC_SUPABASE_URL`, `N
 - Health endpoint (`GET /api/health`): complete
 - Automated tests: complete
 - CHECKIN-02 database schema migration and mock-data tooling: complete
-- Remote Supabase project connection and migration deployment: pending
-- Real registration import (CHECKIN-03): not started
+- Remote Supabase project connection: complete
+- Excel import workflow (CHECKIN-03): ready for protected testing in
+  development; the import migration awaits manual deployment
 - Staff authentication and RLS policies (CHECKIN-04): not started
 - QR ticket generation: not started
 - Check-in scanner: not started
 
 ## Planned Next Ticket
 
-CHECKIN-03: real registration import from the Excel export, including
-preview and approval. Later tickets cover staff authentication (CHECKIN-04),
-QR ticket generation and delivery, scanning and reporting.
+CHECKIN-04: staff authentication and access policies. This is the next
+required security ticket and must be completed before the import
+interface, ticketing or scanning can be exposed beyond development. Later
+tickets cover QR ticket generation and delivery, scanning and reporting.

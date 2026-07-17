@@ -15,6 +15,7 @@
     "supabase:status": "supabase status",
     "supabase:reset": "supabase db reset",
     "db:generate:seed": "tsx scripts/mock-data/generate-seed-sql.ts",
+    "db:generate:mock-import": "tsx scripts/mock-data/generate-import-workbook.ts",
     "db:validate:mock": "tsx scripts/mock-data/validate.ts",
     "db:seed:mock": "tsx scripts/mock-data/seed.ts",
     "db:reset:mock": "tsx scripts/mock-data/reset.ts",

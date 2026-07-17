@@ -1,6 +1,7 @@
 import {
   CheckCircle2,
   Database,
+  FileSpreadsheet,
   KeyRound,
   QrCode,
   ScanLine,
@@ -11,6 +12,7 @@ interface StatusCard {
   title: string;
   detail: string;
   done: boolean;
+  badge: string;
   icon: React.ReactNode;
 }
 
@@ -19,30 +21,43 @@ const statusCards: StatusCard[] = [
     title: "Application configured",
     detail: "Next.js, TypeScript, Tailwind CSS and testing are set up.",
     done: true,
+    badge: "Complete",
     icon: <CheckCircle2 aria-hidden className="h-6 w-6" />,
   },
   {
-    title: "Database migration ready",
-    detail: "The check-in schema migration is version controlled and awaits deployment.",
+    title: "Database migration deployed",
+    detail: "The check-in schema migration is deployed to the Supabase project.",
     done: true,
+    badge: "Complete",
     icon: <Database aria-hidden className="h-6 w-6" />,
   },
   {
-    title: "Mock data tools ready",
-    detail: "Fictional seed, validation and protected reset commands are available.",
+    title: "Mock data loaded",
+    detail: "Fictional development records are seeded with protected reset commands.",
     done: true,
+    badge: "Complete",
     icon: <QrCode aria-hidden className="h-6 w-6" />,
   },
   {
-    title: "Supabase project connection pending",
-    detail: "No remote Supabase project is linked or deployed yet.",
-    done: false,
+    title: "Supabase project connected",
+    detail: "The application is connected to the hosted Supabase project.",
+    done: true,
+    badge: "Complete",
     icon: <KeyRound aria-hidden className="h-6 w-6" />,
   },
   {
-    title: "QR scanner not implemented",
+    title: "Excel import workflow",
+    detail:
+      "Registration workbooks can be uploaded, previewed and safely applied in development. Staff authentication is still required before production use.",
+    done: true,
+    badge: "Ready for protected testing",
+    icon: <FileSpreadsheet aria-hidden className="h-6 w-6" />,
+  },
+  {
+    title: "QR scanner",
     detail: "The check-in scanner will be added after ticketing works.",
     done: false,
+    badge: "Not implemented",
     icon: <ScanLine aria-hidden className="h-6 w-6" />,
   },
 ];
@@ -107,7 +122,7 @@ export default function Home() {
                     : "mt-3 inline-block rounded-full bg-navy/5 px-3 py-1 text-xs font-semibold text-navy/60"
                 }
               >
-                {card.done ? "Complete" : "Pending"}
+                {card.badge}
               </span>
             </div>
           ))}
