@@ -1,8 +1,8 @@
 import type { NextResponse } from "next/server";
-import { hasImportAccess } from "@/features/imports/access";
+import { guardFailureResponse } from "@/features/auth/errors";
+import { requireAdministrator } from "@/features/auth/guards";
 import { applyImport } from "@/features/imports/apply";
 import {
-  disabledResponse,
   internalErrorResponse,
   invalidRequestResponse,
   serviceResponse,
@@ -15,13 +15,14 @@ interface RouteContext {
   params: Promise<{ importId: string }>;
 }
 
-/** Apply the approved rows of a reviewed import. */
+/** Apply the approved rows of a reviewed import. Administrator only. */
 export async function POST(
   request: Request,
   context: RouteContext
 ): Promise<NextResponse> {
-  if (!hasImportAccess()) {
-    return disabledResponse();
+  const guard = await requireAdministrator();
+  if (!guard.ok) {
+    return guardFailureResponse(guard);
   }
 
   try {
@@ -31,7 +32,11 @@ export async function POST(
       return invalidRequestResponse("The import ID is invalid.");
     }
 
-    const result = await applyImport(parsedImportId.data, await request.json());
+    const result = await applyImport(
+      guard.session,
+      parsedImportId.data,
+      await request.json()
+    );
     return serviceResponse(result);
   } catch {
     return internalErrorResponse();

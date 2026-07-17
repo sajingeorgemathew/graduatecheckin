@@ -1,6 +1,5 @@
 import Link from "next/link";
-import { hasImportAccess } from "@/features/imports/access";
-import { ImportsDisabledNotice } from "@/features/imports/components/disabled-notice";
+import { requireAdministratorPage } from "@/features/auth/guards";
 import { listImportHistory } from "@/features/imports/service";
 
 export const dynamic = "force-dynamic";
@@ -17,15 +16,13 @@ function formatDate(value: string | null): string {
 }
 
 export default async function ImportHistoryPage() {
-  if (!hasImportAccess()) {
-    return <ImportsDisabledNotice />;
-  }
+  const session = await requireAdministratorPage("/admin/imports");
 
-  const result = await listImportHistory();
+  const result = await listImportHistory(session);
   const imports = result.ok ? result.data : [];
 
   return (
-    <main className="flex min-h-screen flex-col bg-cream">
+    <main className="flex flex-1 flex-col bg-cream">
       <div className="border-b-4 border-gold bg-navy px-6 py-10 text-white sm:px-10">
         <div className="mx-auto w-full max-w-6xl">
           <p className="text-sm font-semibold uppercase tracking-widest text-gold-light">
@@ -33,8 +30,8 @@ export default async function ImportHistoryPage() {
           </p>
           <h1 className="mt-2 text-3xl font-bold">Registration imports</h1>
           <p className="mt-2 max-w-2xl text-sm text-white/85">
-            Development-only workspace for uploading and reviewing
-            registration workbooks. Original files are never stored.
+            Administrator workspace for uploading and reviewing registration
+            workbooks. Original files are never stored.
           </p>
         </div>
       </div>

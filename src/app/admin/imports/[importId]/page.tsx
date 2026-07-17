@@ -1,7 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { hasImportAccess } from "@/features/imports/access";
-import { ImportsDisabledNotice } from "@/features/imports/components/disabled-notice";
+import { requireAdministratorPage } from "@/features/auth/guards";
 import { ImportPreview } from "@/features/imports/components/import-preview";
 import { importIdSchema } from "@/features/imports/schemas";
 import { getImportDetail } from "@/features/imports/service";
@@ -13,17 +12,15 @@ interface PageProps {
 }
 
 export default async function ImportDetailPage({ params }: PageProps) {
-  if (!hasImportAccess()) {
-    return <ImportsDisabledNotice />;
-  }
-
   const { importId } = await params;
+  const session = await requireAdministratorPage(`/admin/imports/${importId}`);
+
   const parsedImportId = importIdSchema.safeParse(importId);
   if (!parsedImportId.success) {
     notFound();
   }
 
-  const result = await getImportDetail(parsedImportId.data);
+  const result = await getImportDetail(session, parsedImportId.data);
   if (!result.ok) {
     notFound();
   }
@@ -31,7 +28,7 @@ export default async function ImportDetailPage({ params }: PageProps) {
   const { importRecord, rows, missing } = result.data;
 
   return (
-    <main className="flex min-h-screen flex-col bg-cream">
+    <main className="flex flex-1 flex-col bg-cream">
       <div className="border-b-4 border-gold bg-navy px-6 py-10 text-white sm:px-10">
         <div className="mx-auto w-full max-w-6xl">
           <p className="text-sm font-semibold uppercase tracking-widest text-gold-light">

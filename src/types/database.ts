@@ -220,6 +220,11 @@ export type StaffProfileRow = {
   display_name: string;
   role: StaffRole;
   is_active: boolean;
+  email_snapshot: string;
+  must_change_password: boolean;
+  last_login_at: string | null;
+  created_by: string | null;
+  updated_by: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -229,11 +234,55 @@ export type StaffProfileInsert = {
   display_name: string;
   role?: StaffRole;
   is_active?: boolean;
+  email_snapshot?: string;
+  must_change_password?: boolean;
+  last_login_at?: string | null;
+  created_by?: string | null;
+  updated_by?: string | null;
   created_at?: string;
   updated_at?: string;
 }
 
 export type StaffProfileUpdate = Partial<StaffProfileInsert>;
+
+export type StaffAccessAction =
+  | "staff_created"
+  | "role_changed"
+  | "staff_activated"
+  | "staff_deactivated"
+  | "temporary_password_reset"
+  | "password_changed"
+  | "login_blocked";
+
+/**
+ * Append-oriented audit log of staff-account administration actions. The
+ * JSON value columns must never contain passwords, tokens or cookies.
+ */
+export type StaffAccessAuditLogRow = {
+  id: string;
+  actor_user_id: string | null;
+  target_user_id: string | null;
+  action: StaffAccessAction;
+  previous_values: Json;
+  new_values: Json;
+  reason: string | null;
+  request_id: string | null;
+  created_at: string;
+}
+
+export type StaffAccessAuditLogInsert = {
+  id?: string;
+  actor_user_id?: string | null;
+  target_user_id?: string | null;
+  action: StaffAccessAction;
+  previous_values?: Json;
+  new_values?: Json;
+  reason?: string | null;
+  request_id?: string | null;
+  created_at?: string;
+}
+
+export type StaffAccessAuditLogUpdate = Partial<StaffAccessAuditLogInsert>;
 
 export type GraduationCheckinRow = {
   id: string;
@@ -430,6 +479,12 @@ export type Database = {
         Update: StaffProfileUpdate;
         Relationships: [];
       };
+      staff_access_audit_log: {
+        Row: StaffAccessAuditLogRow;
+        Insert: StaffAccessAuditLogInsert;
+        Update: StaffAccessAuditLogUpdate;
+        Relationships: [];
+      };
       graduation_checkins: {
         Row: GraduationCheckinRow;
         Insert: GraduationCheckinInsert;
@@ -455,6 +510,15 @@ export type Database = {
         Args: { p_import_id: string };
         Returns: Json;
       };
+      apply_staff_access_change: {
+        Args: {
+          p_actor_user_id: string;
+          p_target_user_id: string;
+          p_new_role: StaffRole;
+          p_new_is_active: boolean;
+        };
+        Returns: Json;
+      };
     };
     Enums: {
       graduation_event_status: GraduationEventStatus;
@@ -464,6 +528,7 @@ export type Database = {
       guest_category: GuestCategory;
       ticket_status: TicketStatus;
       staff_role: StaffRole;
+      staff_access_action: StaffAccessAction;
       checkin_method: CheckinMethod;
       checkin_action: CheckinAction;
       registration_import_status: RegistrationImportStatus;

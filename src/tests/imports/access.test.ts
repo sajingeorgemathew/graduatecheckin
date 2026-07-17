@@ -1,71 +1,58 @@
 import { describe, expect, it } from "vitest";
-import { isImportAccessEnabled } from "@/features/imports/access";
+import { hasImportAccess } from "@/features/imports/access";
 import {
-  disabledResponse,
+  forbiddenResponse,
   internalErrorResponse,
 } from "@/features/imports/http";
 import { applyImportSchema } from "@/features/imports/schemas";
+import { fictionalSession } from "../auth/helpers";
 
 describe("import access controls", () => {
-  it("is disabled in production even with the flag enabled", () => {
+  it("denies anonymous callers", () => {
+    expect(hasImportAccess(null)).toBe(false);
+  });
+
+  it("denies scanners and supervisors", () => {
+    expect(hasImportAccess(fictionalSession("scanner"))).toBe(false);
+    expect(hasImportAccess(fictionalSession("supervisor"))).toBe(false);
+  });
+
+  it("allows active administrators", () => {
+    expect(hasImportAccess(fictionalSession("administrator"))).toBe(true);
+  });
+
+  it("denies inactive administrators", () => {
     expect(
-      isImportAccessEnabled({
-        appEnv: "production",
-        enableDevImports: "true",
-      })
+      hasImportAccess(fictionalSession("administrator", { isActive: false }))
     ).toBe(false);
   });
 
-  it("is disabled in development when the flag is false or missing", () => {
+  it("denies administrators with a pending required password change", () => {
     expect(
-      isImportAccessEnabled({
-        appEnv: "development",
-        enableDevImports: "false",
-      })
-    ).toBe(false);
-    expect(
-      isImportAccessEnabled({
-        appEnv: "development",
-        enableDevImports: undefined,
-      })
+      hasImportAccess(
+        fictionalSession("administrator", { mustChangePassword: true })
+      )
     ).toBe(false);
   });
 
-  it("is enabled only in development with the explicit flag", () => {
-    expect(
-      isImportAccessEnabled({
-        appEnv: "development",
-        enableDevImports: "true",
-      })
-    ).toBe(true);
-    expect(
-      isImportAccessEnabled({ appEnv: "test", enableDevImports: "true" })
-    ).toBe(false);
-  });
-
-  it("requires exact flag values", () => {
-    expect(
-      isImportAccessEnabled({
-        appEnv: "development",
-        enableDevImports: "TRUE",
-      })
-    ).toBe(false);
-    expect(
-      isImportAccessEnabled({ appEnv: "Development", enableDevImports: "true" })
-    ).toBe(false);
+  it("requires no development environment flag", () => {
+    // Access is decided purely from the trusted session; ENABLE_DEV_IMPORTS
+    // no longer exists anywhere in the environment schema.
+    expect(process.env.ENABLE_DEV_IMPORTS).toBeUndefined();
+    expect(hasImportAccess(fictionalSession("administrator"))).toBe(true);
   });
 });
 
 describe("structured API responses", () => {
-  it("returns a not found style response when disabled", async () => {
-    const response = disabledResponse();
-    expect(response.status).toBe(404);
+  it("returns a 403 with no-store caching when access is denied", async () => {
+    const response = forbiddenResponse();
+    expect(response.status).toBe(403);
     expect(response.headers.get("Cache-Control")).toBe("no-store");
     const body: unknown = await response.json();
     expect(body).toEqual({
       error: {
-        code: "imports_disabled",
-        message: "The import feature is not available.",
+        code: "not_authorized",
+        message: "Administrator access is required for imports.",
       },
     });
   });

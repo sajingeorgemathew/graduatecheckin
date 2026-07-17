@@ -16,14 +16,14 @@ export function jsonResponse(body: unknown, status: number): NextResponse {
   return NextResponse.json(body, { status, headers: NO_STORE_HEADERS });
 }
 
-export function disabledResponse(): NextResponse {
+export function forbiddenResponse(): NextResponse {
   const body: StructuredError = {
     error: {
-      code: "imports_disabled",
-      message: "The import feature is not available.",
+      code: "not_authorized",
+      message: "Administrator access is required for imports.",
     },
   };
-  return jsonResponse(body, 404);
+  return jsonResponse(body, 403);
 }
 
 export function internalErrorResponse(): NextResponse {

@@ -19,7 +19,8 @@
     "db:validate:mock": "tsx scripts/mock-data/validate.ts",
     "db:seed:mock": "tsx scripts/mock-data/seed.ts",
     "db:reset:mock": "tsx scripts/mock-data/reset.ts",
-    "db:reset:mock-checkins": "tsx scripts/mock-data/reset-checkins.ts"
+    "db:reset:mock-checkins": "tsx scripts/mock-data/reset-checkins.ts",
+    "auth:verify-admin": "tsx scripts/auth/verify-administrator.ts"
   },
   "dependencies": {
     "@supabase/ssr": "^0.12.3",

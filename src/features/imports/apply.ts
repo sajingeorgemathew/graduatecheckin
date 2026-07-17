@@ -6,6 +6,7 @@ import "server-only";
  * then reports summary counts only.
  */
 
+import type { StaffSession } from "@/features/auth/types";
 import type { Json, RegistrationImportStatus } from "@/types/database";
 import { hasImportAccess } from "./access";
 import { applyImportRpc, getImport } from "./repository";
@@ -54,11 +55,16 @@ function failure(
  * applied twice.
  */
 export async function applyImport(
+  actor: StaffSession,
   importId: string,
   body: unknown
 ): Promise<ServiceResult<ApplyResult>> {
-  if (!hasImportAccess()) {
-    return failure(404, "imports_disabled", "The import feature is not available.");
+  if (!hasImportAccess(actor)) {
+    return failure(
+      403,
+      "not_authorized",
+      "Administrator access is required for imports."
+    );
   }
 
   const parsedBody = applyImportSchema.safeParse(body);
