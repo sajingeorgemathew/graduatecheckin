@@ -16,31 +16,31 @@ interface StatusCard {
 
 const statusCards: StatusCard[] = [
   {
-    title: "Project configured",
+    title: "Application configured",
     detail: "Next.js, TypeScript, Tailwind CSS and testing are set up.",
     done: true,
     icon: <CheckCircle2 aria-hidden className="h-6 w-6" />,
   },
   {
-    title: "Supabase credentials pending",
-    detail: "Public URL and publishable key have not been added yet.",
+    title: "Database migration ready",
+    detail: "The check-in schema migration is version controlled and awaits deployment.",
+    done: true,
+    icon: <Database aria-hidden className="h-6 w-6" />,
+  },
+  {
+    title: "Mock data tools ready",
+    detail: "Fictional seed, validation and protected reset commands are available.",
+    done: true,
+    icon: <QrCode aria-hidden className="h-6 w-6" />,
+  },
+  {
+    title: "Supabase project connection pending",
+    detail: "No remote Supabase project is linked or deployed yet.",
     done: false,
     icon: <KeyRound aria-hidden className="h-6 w-6" />,
   },
   {
-    title: "Mock data not loaded",
-    detail: "Development data will be loaded after Supabase is connected.",
-    done: false,
-    icon: <Database aria-hidden className="h-6 w-6" />,
-  },
-  {
-    title: "QR tickets not generated",
-    detail: "Ticket generation will be built in an upcoming phase.",
-    done: false,
-    icon: <QrCode aria-hidden className="h-6 w-6" />,
-  },
-  {
-    title: "Scanner not implemented",
+    title: "QR scanner not implemented",
     detail: "The check-in scanner will be added after ticketing works.",
     done: false,
     icon: <ScanLine aria-hidden className="h-6 w-6" />,
