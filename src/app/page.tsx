@@ -5,6 +5,7 @@ import {
   KeyRound,
   QrCode,
   ScanLine,
+  ShieldCheck,
   TriangleAlert,
 } from "lucide-react";
 
@@ -48,14 +49,22 @@ const statusCards: StatusCard[] = [
   {
     title: "Excel import workflow",
     detail:
-      "Registration workbooks can be uploaded, previewed and safely applied in development. Staff authentication is still required before production use.",
+      "Registration workbooks can be uploaded, previewed and safely applied by authenticated administrators.",
     done: true,
-    badge: "Ready for protected testing",
+    badge: "Administrator protected",
     icon: <FileSpreadsheet aria-hidden className="h-6 w-6" />,
   },
   {
-    title: "QR scanner",
-    detail: "The check-in scanner will be added after ticketing works.",
+    title: "Staff authentication",
+    detail:
+      "Staff sign in with email and password. Roles control access to scanning, supervision and administration tools.",
+    done: true,
+    badge: "Ready for setup",
+    icon: <ShieldCheck aria-hidden className="h-6 w-6" />,
+  },
+  {
+    title: "QR ticket generation",
+    detail: "Secure QR admission tickets arrive with the ticketing milestone.",
     done: false,
     badge: "Not implemented",
     icon: <ScanLine aria-hidden className="h-6 w-6" />,

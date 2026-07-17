@@ -22,7 +22,10 @@ beforeAll(() => {
     file.endsWith("_create_registration_import_pipeline.sql")
   );
   expect(files).toHaveLength(1);
-  migration = readFileSync(join(migrationsDir, files[0]), "utf8").toLowerCase();
+  // Normalized to LF so assertions are independent of checkout line endings.
+  migration = readFileSync(join(migrationsDir, files[0]), "utf8")
+    .replaceAll("\r\n", "\n")
+    .toLowerCase();
 });
 
 describe("apply status gate", () => {

@@ -2,11 +2,14 @@ import "server-only";
 
 /**
  * Import workflow orchestration. Route handlers stay thin and delegate
- * here. Every mutation re-verifies development import access. The target
- * event is fixed server-side and never accepted from the browser.
+ * here. Every function re-verifies that the trusted acting session is an
+ * active administrator, so no mutation relies on the Proxy or client-side
+ * checks alone. The target event is fixed server-side and never accepted
+ * from the browser.
  */
 
 import { createHash } from "node:crypto";
+import type { StaffSession } from "@/features/auth/types";
 import type {
   Json,
   RegistrationImportRow,
@@ -62,9 +65,9 @@ function failure<T>(
 
 function accessFailure<T>(): ServiceResult<T> {
   return failure(
-    404,
-    "imports_disabled",
-    "The import feature is not available."
+    403,
+    "not_authorized",
+    "Administrator access is required for imports."
   );
 }
 
@@ -142,9 +145,10 @@ export interface UploadPreviewData {
  * original file is never retained anywhere.
  */
 export async function uploadAndPreview(
+  actor: StaffSession,
   input: UploadInput
 ): Promise<ServiceResult<UploadPreviewData>> {
-  if (!hasImportAccess()) {
+  if (!hasImportAccess(actor)) {
     return accessFailure();
   }
 
@@ -178,6 +182,7 @@ export async function uploadAndPreview(
       file_size_bytes: input.sizeBytes,
       worksheet_name: previousApplied.worksheet_name,
       status: "duplicate",
+      created_by: actor.userId,
     });
     return {
       ok: true,
@@ -283,6 +288,7 @@ export async function uploadAndPreview(
     worksheet_name: selection.selection.sheet.name,
     source_system: IMPORT_SOURCE_SYSTEM,
     status: "uploaded",
+    created_by: actor.userId,
     ...counts,
     missing_existing_rows: missing.length,
   });
@@ -310,9 +316,10 @@ export interface ImportDetailData {
 }
 
 export async function getImportDetail(
+  actor: StaffSession,
   importId: string
 ): Promise<ServiceResult<ImportDetailData>> {
-  if (!hasImportAccess()) {
+  if (!hasImportAccess(actor)) {
     return accessFailure();
   }
 
@@ -339,10 +346,10 @@ export async function getImportDetail(
   };
 }
 
-export async function listImportHistory(): Promise<
-  ServiceResult<RegistrationImportRow[]>
-> {
-  if (!hasImportAccess()) {
+export async function listImportHistory(
+  actor: StaffSession
+): Promise<ServiceResult<RegistrationImportRow[]>> {
+  if (!hasImportAccess(actor)) {
     return accessFailure();
   }
   const event = await getEventByCode(IMPORT_EVENT_CODE);
@@ -365,11 +372,12 @@ const TOGGLEABLE_RESULTS: RegistrationImportRowResult[] = [
  * can no longer be edited.
  */
 export async function setRowInclusion(
+  actor: StaffSession,
   importId: string,
   rowId: string,
   include: boolean
 ): Promise<ServiceResult<{ result: RegistrationImportRowResult }>> {
-  if (!hasImportAccess()) {
+  if (!hasImportAccess(actor)) {
     return accessFailure();
   }
 
@@ -447,9 +455,10 @@ export async function setRowInclusion(
 }
 
 export async function cancelImport(
+  actor: StaffSession,
   importId: string
 ): Promise<ServiceResult<{ status: "cancelled" }>> {
-  if (!hasImportAccess()) {
+  if (!hasImportAccess(actor)) {
     return accessFailure();
   }
 

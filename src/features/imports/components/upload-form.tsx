@@ -1,7 +1,7 @@
 "use client";
 
 /**
- * Development-only upload form. Sends the workbook to the upload API and
+ * Administrator upload form. Sends the workbook to the upload API and
  * navigates to the created preview. The original file is parsed in memory
  * on the server and never retained.
  */

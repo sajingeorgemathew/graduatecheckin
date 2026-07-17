@@ -1,7 +1,7 @@
 import type { NextResponse } from "next/server";
-import { hasImportAccess } from "@/features/imports/access";
+import { guardFailureResponse } from "@/features/auth/errors";
+import { requireAdministrator } from "@/features/auth/guards";
 import {
-  disabledResponse,
   internalErrorResponse,
   invalidRequestResponse,
   serviceResponse,
@@ -19,13 +19,14 @@ interface RouteContext {
   params: Promise<{ importId: string; rowId: string }>;
 }
 
-/** Include or exclude one preview row. */
+/** Include or exclude one preview row. Administrator only. */
 export async function PATCH(
   request: Request,
   context: RouteContext
 ): Promise<NextResponse> {
-  if (!hasImportAccess()) {
-    return disabledResponse();
+  const guard = await requireAdministrator();
+  if (!guard.ok) {
+    return guardFailureResponse(guard);
   }
 
   try {
@@ -42,6 +43,7 @@ export async function PATCH(
     }
 
     const result = await setRowInclusion(
+      guard.session,
       parsedImportId.data,
       parsedRowId.data,
       body.data.include

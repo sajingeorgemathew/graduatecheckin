@@ -1,7 +1,7 @@
 import type { NextResponse } from "next/server";
-import { hasImportAccess } from "@/features/imports/access";
+import { guardFailureResponse } from "@/features/auth/errors";
+import { requireAdministrator } from "@/features/auth/guards";
 import {
-  disabledResponse,
   internalErrorResponse,
   invalidRequestResponse,
   serviceResponse,
@@ -15,13 +15,14 @@ interface RouteContext {
   params: Promise<{ importId: string }>;
 }
 
-/** Cancel an import that is still awaiting review. */
+/** Cancel an import that is still awaiting review. Administrator only. */
 export async function POST(
-  request: Request,
+  _request: Request,
   context: RouteContext
 ): Promise<NextResponse> {
-  if (!hasImportAccess()) {
-    return disabledResponse();
+  const guard = await requireAdministrator();
+  if (!guard.ok) {
+    return guardFailureResponse(guard);
   }
 
   try {
@@ -31,7 +32,7 @@ export async function POST(
       return invalidRequestResponse("The import ID is invalid.");
     }
 
-    const result = await cancelImport(parsedImportId.data);
+    const result = await cancelImport(guard.session, parsedImportId.data);
     return serviceResponse(result);
   } catch {
     return internalErrorResponse();
