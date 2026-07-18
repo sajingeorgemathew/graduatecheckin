@@ -57,6 +57,21 @@ export type CheckinMethod =
 
 export type CheckinAction = "admission" | "correction" | "reversal";
 
+export type TicketScanMethod = "qr" | "manual_code";
+
+export type TicketValidationResult =
+  | "valid"
+  | "partially_checked_in"
+  | "already_checked_in"
+  | "invalid"
+  | "revoked"
+  | "replaced"
+  | "pending"
+  | "wrong_event"
+  | "registration_blocked"
+  | "rate_limited"
+  | "error";
+
 export type RegistrationImportStatus =
   | "uploaded"
   | "preview_ready"
@@ -409,6 +424,51 @@ export type GraduationCheckinInsert = {
 
 export type GraduationCheckinUpdate = Partial<GraduationCheckinInsert>;
 
+/**
+ * Privacy-safe scanner validation audit rows. A scan attempt records that
+ * the server validated a ticket value and what the outcome was; it is not
+ * an admission record. Rows never contain QR payloads, raw tokens, token
+ * hashes, ticket codes, graduate names, emails, phone numbers, guest
+ * names or payment information.
+ */
+export type TicketScanAttemptRow = {
+  id: string;
+  event_id: string | null;
+  ticket_id: string | null;
+  registration_id: string | null;
+  staff_user_id: string;
+  method: TicketScanMethod;
+  result: TicketValidationResult;
+  request_id: string;
+  ticket_status_snapshot: TicketStatus | null;
+  registration_status_snapshot: RegistrationStatus | null;
+  graduate_arrived_snapshot: number | null;
+  adult_guests_arrived_snapshot: number | null;
+  children_0_4_arrived_snapshot: number | null;
+  children_5_10_arrived_snapshot: number | null;
+  created_at: string;
+}
+
+export type TicketScanAttemptInsert = {
+  id?: string;
+  event_id?: string | null;
+  ticket_id?: string | null;
+  registration_id?: string | null;
+  staff_user_id: string;
+  method: TicketScanMethod;
+  result: TicketValidationResult;
+  request_id: string;
+  ticket_status_snapshot?: TicketStatus | null;
+  registration_status_snapshot?: RegistrationStatus | null;
+  graduate_arrived_snapshot?: number | null;
+  adult_guests_arrived_snapshot?: number | null;
+  children_0_4_arrived_snapshot?: number | null;
+  children_5_10_arrived_snapshot?: number | null;
+  created_at?: string;
+}
+
+export type TicketScanAttemptUpdate = Partial<TicketScanAttemptInsert>;
+
 export type RegistrationImportRow = {
   id: string;
   event_id: string;
@@ -588,6 +648,12 @@ export type Database = {
         Update: GraduationCheckinUpdate;
         Relationships: [];
       };
+      ticket_scan_attempts: {
+        Row: TicketScanAttemptRow;
+        Insert: TicketScanAttemptInsert;
+        Update: TicketScanAttemptUpdate;
+        Relationships: [];
+      };
       registration_imports: {
         Row: RegistrationImportRow;
         Insert: RegistrationImportInsert;
@@ -662,6 +728,8 @@ export type Database = {
       staff_access_action: StaffAccessAction;
       checkin_method: CheckinMethod;
       checkin_action: CheckinAction;
+      ticket_scan_method: TicketScanMethod;
+      ticket_validation_result: TicketValidationResult;
       registration_import_status: RegistrationImportStatus;
       registration_import_row_result: RegistrationImportRowResult;
     };

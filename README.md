@@ -64,6 +64,7 @@ The application builds and runs before the Supabase values are added. Supabase-d
 | `npm run test:watch` | Run tests in watch mode. |
 | `npm run auth:verify-admin` | Read-only check that an active administrator exists. Prints counts and masked emails only and exits nonzero when none exist. |
 | `npm run tickets:verify-config` | Read-only check of the ticket configuration: active event code, ticket-secret validity, a one-way secret fingerprint and eligibility counts only. Never prints the secret, names, emails, phones or tokens. Exits nonzero on unsafe configuration. |
+| `npm run scanner:verify-config` | Read-only check of the scanner configuration: active event, ticket secret, Supabase server credentials, ticket status counts and whether the scan-attempt table is deployed. Prints no names, codes, UUIDs, tokens, hashes or contact information. Exits nonzero on unsafe configuration. |
 
 ## Supabase CLI and Database
 
@@ -505,7 +506,7 @@ and email distribution. No PDF or ticket email exists in CHECKIN-05.
 ### Dependencies on later tickets
 
 - CHECKIN-06 adds the staff scanner that reads the `TAE-GRAD1:` payload
-  and validates token hashes. No scanning or check-in exists yet.
+  and validates token hashes. See the CHECKIN-06 section below.
 - CHECKIN-09 adds PDF generation and email delivery of tickets.
 
 ### Manual deployment steps
@@ -517,6 +518,160 @@ and email distribution. No PDF or ticket email exists in CHECKIN-05.
   and never modifies previously deployed migrations.
 - Vercel requires the existing variables plus
   `ACTIVE_GRADUATION_EVENT_CODE`. No other new variable is needed.
+
+## Mobile Staff Scanner and Secure Ticket Validation (CHECKIN-06)
+
+CHECKIN-06 adds the mobile staff scanner at `/staff/scanner` and the
+server-side ticket validation API. It validates tickets only.
+
+Ticket validation is not the same as recording attendance. The scanner
+verifies a ticket and shows the registration's current attendance state;
+admission confirmation (the Confirm Check-In action) belongs to
+CHECKIN-07 and does not exist yet.
+
+### Mobile scanner architecture
+
+- `/staff/scanner` is a server-guarded page available to scanner,
+  supervisor and administrator roles. The page itself renders no camera
+  code; all camera work happens in Client Components.
+- `src/features/scanner/` holds the feature: pure validation, attendance
+  and replacement-chain modules, a server-only repository and service,
+  and the camera components.
+- `POST /api/staff/scanner/validate` performs every validation
+  server-side. The browser never decides whether a ticket is valid and
+  never receives token hashes or raw tokens.
+- `@zxing/browser` provides QR decoding and is imported only by the
+  camera Client Component. `BrowserQRCodeReader` decodes QR codes only.
+
+### Camera permission behavior
+
+- The camera never starts during server rendering or on page load. It
+  starts only after staff press Start Camera, which triggers the browser
+  permission prompt.
+- The rear-facing camera is preferred (`facingMode: environment`) and a
+  camera selector plus a Switch Camera control appear when the device
+  has more than one camera.
+- Media tracks are stopped when scanning pauses, when the camera is
+  stopped or switched and when the page unmounts. The camera is never
+  left active in the background.
+- Permission denial, missing cameras, camera-in-use conflicts and
+  insecure contexts show clear staff-facing messages with the manual
+  code entry as fallback.
+- Camera access requires a secure context (HTTPS or localhost). On plain
+  HTTP the scanner explains the problem and manual entry still works.
+
+### QR validation sequence
+
+For each QR scan the server: authorizes the staff user, applies rate
+limiting, resolves the configured `ACTIVE_GRADUATION_EVENT_CODE` event,
+parses the `TAE-GRAD1:` prefix, verifies the HMAC token signature,
+validates the embedded ticket UUID, computes the SHA-256 token hash,
+loads the ticket, compares the computed hash against the stored hash
+with a constant-time comparison, verifies the ticket and registration
+belong to the configured event, evaluates ticket and registration
+status, calculates registration-level attendance, records a
+privacy-safe scan attempt and returns a safe result. A correctly signed
+token with a mismatched stored hash is rejected as a generic invalid
+ticket; responses never reveal which verification step failed.
+
+### Manual-code fallback
+
+Staff can type the printed ticket code (for example `GR26-ABCD-EFGH`)
+when a QR code is damaged or the camera is unavailable. Codes are
+normalized to uppercase, trimmed and must match the exact format before
+any lookup. The lookup is exact only: no partial matching, no broad
+search and no similar-code suggestions. Validation then continues with
+the same ticket, event, registration and attendance checks.
+
+### Ticket-status results
+
+- Active tickets continue to registration and attendance validation.
+- Revoked tickets return `revoked` with a clear do-not-admit message.
+- Replaced tickets return `replaced`, mark the old ticket invalid and
+  show the latest replacement ticket code when it can be resolved.
+- Pending tickets return `pending`; they are not ready for admission.
+- Unknown tickets, bad prefixes, bad signatures and hash mismatches all
+  return the same generic `invalid` result.
+- Tickets from another event return `wrong_event` without revealing
+  details from the other event.
+- Non-eligible registrations return `registration_blocked`.
+
+### Replacement-chain handling
+
+When an old replaced ticket is scanned, the server follows
+`replaced_by_ticket_id` to the newest ticket, with a maximum depth of
+ten and cycle detection, and returns only the latest ticket code and
+status. Broken, cyclic or cross-registration chains fall back to a
+generic replaced-ticket message. Resolution never reactivates the old
+ticket and never exposes tokens or hashes.
+
+### Registration-level attendance behavior
+
+Attendance belongs to the registration. Replacing a ticket does not
+reset previous check-in activity.
+
+The scanner sums the delta columns of every `graduation_checkins` row of
+the registration (admissions, corrections and reversals), clamps the
+totals between zero and the registered allowance and reports:
+
+- `valid` when no attendance is recorded,
+- `partially_checked_in` when part of the party has been admitted,
+- `already_checked_in` when the graduate and full party were admitted.
+
+Because attendance is keyed by registration, scanning a replacement
+ticket after the old ticket was used still shows the existing
+attendance. CHECKIN-06 never inserts, reverses or modifies check-in
+rows.
+
+### Scan-attempt audit privacy
+
+Every server validation response records one row in
+`ticket_scan_attempts`: staff user, event, matched ticket and
+registration when available, method, result, status snapshots, clamped
+attendance-count snapshots, time and the client request UUID (unique
+per staff user, which keeps retried requests idempotent). The table
+never stores QR payloads, raw tokens, token hashes, ticket codes,
+graduate names, emails, phones, guest names or payment information. A
+scan attempt is not an admission record. Retention should be reviewed
+after the event; no automatic deletion job exists in this ticket.
+
+### Server-side rate limiting
+
+Each staff user may make 60 validation requests per rolling minute,
+counted from `ticket_scan_attempts` by the authenticated user, never by
+client IP. Excess requests receive HTTP 429 and a `rate_limited`
+attempt is recorded without any scanned data. This limit is independent
+of the client-side duplicate suppression, which pauses decoding after
+each result and requires Scan Another Ticket before resuming.
+
+### CHECKIN-07 separation
+
+CHECKIN-06 contains no admission action: no Confirm Check-In button, no
+graduate, guest or child admission, no partial-arrival submission, no
+reversal and no attendance dashboard. The scanner page states that it
+validates tickets only.
+
+### Manual migration deployment (CHECKIN-06)
+
+The migration `supabase/migrations/*_create_ticket_scan_validation_audit.sql`
+awaits manual review and deployment (for example `npx supabase db push`
+against the linked project). It only adds the two scanner enums and the
+`ticket_scan_attempts` table with RLS enabled and anon and authenticated
+privileges revoked. `npm run scanner:verify-config` safely reports the
+table as missing until the migration is deployed. No new Vercel
+environment variable is required.
+
+### Testing the scanner
+
+- `npm run test` covers camera-controller behavior, QR and manual-code
+  validation, ticket and registration status handling, replacement
+  chains, attendance calculation, authorization, rate limiting, audit
+  privacy and migration safety with fictional data only.
+- Manual browser testing requires a signed-in staff account, a deployed
+  CHECKIN-06 migration and a phone or laptop camera on HTTPS or
+  localhost. Generate test tickets in Ticket Management, open
+  `/staff/scanner`, press Start Camera and scan a ticket QR shown on
+  another screen, or type its backup code.
 
 ## Data-Protection Rules
 
@@ -560,9 +715,11 @@ import migration awaits manual deployment.
   bootstrap await manual completion
 - Secure ticket generation (CHECKIN-05): implemented; the ticket
   migration awaits manual deployment
-- Check-in scanner: not started
+- Mobile ticket scanner and secure validation (CHECKIN-06): implemented;
+  the scan-attempt migration awaits manual deployment
+- Attendance check-in (CHECKIN-07): not started
 
 ## Planned Next Ticket
 
-CHECKIN-06: QR scanning and check-in. Later tickets cover check-in
-processing, reporting and ticket delivery (CHECKIN-09).
+CHECKIN-07: attendance check-in and admission confirmation. Later
+tickets cover reporting and ticket delivery (CHECKIN-09).

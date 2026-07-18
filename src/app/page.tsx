@@ -59,7 +59,7 @@ const statusCards: StatusCard[] = [
     detail:
       "Staff sign in with email and password. Roles control access to scanning, supervision and administration tools.",
     done: true,
-    badge: "Ready for setup",
+    badge: "Complete",
     icon: <ShieldCheck aria-hidden className="h-6 w-6" />,
   },
   {
@@ -67,15 +67,23 @@ const statusCards: StatusCard[] = [
     detail:
       "Administrators generate, replace and revoke secure QR admission tickets.",
     done: true,
-    badge: "Ready for protected testing",
+    badge: "Complete",
     icon: <QrCode aria-hidden className="h-6 w-6" />,
   },
   {
-    title: "QR scanner",
-    detail: "Entrance scanning arrives with the check-in milestone.",
+    title: "Mobile ticket scanner",
+    detail:
+      "Staff validate graduate QR tickets and ticket codes at the entrance.",
+    done: true,
+    badge: "Ready for protected testing",
+    icon: <ScanLine aria-hidden className="h-6 w-6" />,
+  },
+  {
+    title: "Attendance check-in",
+    detail: "Admission confirmation arrives with the check-in milestone.",
     done: false,
     badge: "Not implemented",
-    icon: <ScanLine aria-hidden className="h-6 w-6" />,
+    icon: <CheckCircle2 aria-hidden className="h-6 w-6" />,
   },
 ];
 
