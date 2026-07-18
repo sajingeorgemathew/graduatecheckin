@@ -19,11 +19,12 @@ interface ToolCard {
 function toolCardsFor(session: StaffSession): ToolCard[] {
   const cards: ToolCard[] = [
     {
-      title: "QR scanner",
-      detail: "Scan graduate tickets at the event entrance.",
-      badge: "Available in CHECKIN-06",
-      available: false,
-      href: null,
+      title: "Scan tickets",
+      detail:
+        "Scan graduate QR tickets and validate them at the event entrance.",
+      badge: "Available now",
+      available: true,
+      href: "/staff/scanner",
       icon: <ScanLine aria-hidden className="h-6 w-6" />,
     },
   ];

@@ -21,7 +21,10 @@ interface NavLink {
 }
 
 function navLinksFor(session: StaffSession): NavLink[] {
-  const links: NavLink[] = [{ href: "/staff", label: "Staff Home" }];
+  const links: NavLink[] = [
+    { href: "/staff", label: "Staff Home" },
+    { href: "/staff/scanner", label: "Scan Tickets" },
+  ];
   if (canAccessAdmin(session.role)) {
     links.push(
       { href: "/admin", label: "Admin" },
