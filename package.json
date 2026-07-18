@@ -22,7 +22,8 @@
     "db:reset:mock-checkins": "tsx scripts/mock-data/reset-checkins.ts",
     "auth:verify-admin": "tsx scripts/auth/verify-administrator.ts",
     "tickets:verify-config": "tsx scripts/tickets/verify-config.ts",
-    "scanner:verify-config": "tsx scripts/scanner/verify-config.ts"
+    "scanner:verify-config": "tsx scripts/scanner/verify-config.ts",
+    "checkin:verify-config": "tsx scripts/checkin/verify-config.ts"
   },
   "dependencies": {
     "@supabase/ssr": "^0.12.3",

@@ -65,6 +65,7 @@ The application builds and runs before the Supabase values are added. Supabase-d
 | `npm run auth:verify-admin` | Read-only check that an active administrator exists. Prints counts and masked emails only and exits nonzero when none exist. |
 | `npm run tickets:verify-config` | Read-only check of the ticket configuration: active event code, ticket-secret validity, a one-way secret fingerprint and eligibility counts only. Never prints the secret, names, emails, phones or tokens. Exits nonzero on unsafe configuration. |
 | `npm run scanner:verify-config` | Read-only check of the scanner configuration: active event, ticket secret, Supabase server credentials, ticket status counts and whether the scan-attempt table is deployed. Prints no names, codes, UUIDs, tokens, hashes or contact information. Exits nonzero on unsafe configuration. |
+| `npm run checkin:verify-config` | Read-only check of the check-in configuration: Supabase server credentials, active event, whether the CHECKIN-06 scan-attempt table and the CHECKIN-07 `apply_graduation_checkin` function are deployed and registration-level check-in counts only. Prints no names, codes, UUIDs, tokens, hashes or contact information. Exits nonzero on unsafe configuration. |
 
 ## Supabase CLI and Database
 
@@ -526,8 +527,8 @@ server-side ticket validation API. It validates tickets only.
 
 Ticket validation is not the same as recording attendance. The scanner
 verifies a ticket and shows the registration's current attendance state;
-admission confirmation (the Confirm Check-In action) belongs to
-CHECKIN-07 and does not exist yet.
+admission confirmation (the Confirm Arrival action) is added in CHECKIN-07
+and described in the CHECKIN-07 section below.
 
 ### Mobile scanner architecture
 
@@ -673,6 +674,116 @@ environment variable is required.
   `/staff/scanner`, press Start Camera and scan a ticket QR shown on
   another screen, or type its backup code.
 
+## Graduate and Guest Arrival Check-In (CHECKIN-07)
+
+CHECKIN-07 adds the arrival-confirmation workflow. After a valid or partial
+scan on `/staff/scanner`, staff confirm who is arriving now and the server
+records an append-only attendance entry.
+
+### Attendance belongs to the registration
+
+Attendance belongs to the registration. Replacing a ticket does not reset
+or duplicate attendance. Every current total is recomputed across all
+`graduation_checkins` rows of the registration inside the database
+transaction, so a replacement ticket sees the attendance recorded through
+the old ticket, an already-admitted party cannot be admitted a second time
+through a replacement, and partial arrivals stay visible regardless of
+which active ticket is scanned next.
+
+### Validation-to-check-in flow
+
+- The scanner validates a ticket (CHECKIN-06) and returns a trusted
+  validation-attempt id. The browser keeps that id only in current React
+  memory: never in a URL, query string, cookie, `localStorage`,
+  `sessionStorage`, console or analytics.
+- A `valid` or `partially_checked_in` result shows the arrival form below
+  the result. `already_checked_in`, `revoked`, `replaced`, `pending`,
+  `invalid`, `wrong_event`, `registration_blocked`, `rate_limited` and
+  `error` never show the form.
+- The form posts to `POST /api/staff/checkin/confirm` with only the
+  validation-attempt id, a request id and the arriving-now counts. It never
+  sends an event, ticket, registration or actor id. The acting user comes
+  from the trusted session and the active event is resolved server-side.
+
+### Partial and guest-first arrivals, child categories
+
+- Partial arrivals are supported: the graduate, adult guests, children age
+  0 to 4 and children age 5 to 10 can each arrive separately across
+  multiple scans. A new scan is required before recording each arrival.
+- Guests may arrive before the graduate. The graduate is never required to
+  arrive first.
+- The two child categories are tracked and enforced independently.
+
+### One-time validation attempts and the 15-minute lifetime
+
+- A successful validation may confirm attendance for 15 minutes. After that
+  the ticket must be scanned again. Refreshing the browser also requires a
+  new validation.
+- A validation attempt may be consumed only once. A unique index on
+  `validation_attempt_id` and a recheck inside the transaction enforce this.
+
+### Idempotency and network retry
+
+- The browser generates one request id per confirmation action and reuses
+  it while retrying a failed network request. It never generates a new
+  request id for an automatic retry.
+- A unique index on `(recorded_by, request_id)` plus an idempotency check
+  in the function return the original successful result for a duplicate
+  submission, so a duplicate click or a lost-response retry never creates a
+  second attendance row.
+
+### Concurrency protection
+
+The `apply_graduation_checkin` function locks the validation attempt, the
+event, the ticket and the registration, then recalculates attendance and
+enforces the registered allowance under the registration lock. Two staff
+confirming the same remaining seats cannot over-admit: the losing request
+receives a safe `conflict` with refreshed totals. Attendance is never
+recorded above the registered allowance.
+
+### Append-only check-in records
+
+CHECKIN-07 records positive arrivals only. Each confirmation inserts one
+`graduation_checkins` row and never updates, deletes or reverses an earlier
+row, never inserts a negative delta and never changes registration
+allowances, ticket status or payment status. Corrections and reversals
+require the supervisor workflow in CHECKIN-08.
+
+### Event and registration revalidation
+
+The function rechecks ticket, registration and event status at confirmation
+time. A ticket revoked or replaced after validation returns
+`ticket_not_active` ("Ticket status changed. Scan the current ticket
+again."). A registration that becomes cancelled or review-required returns
+`registration_blocked`. A closed, archived or missing event returns
+`configuration_error`.
+
+### Manual migration deployment (CHECKIN-07)
+
+The migration
+`supabase/migrations/*_create_graduate_guest_checkin_workflow.sql` awaits
+manual review and deployment (for example `npx supabase db push` against
+the linked project). It is additive only: it adds the nullable
+`request_id`, `validation_attempt_id` and `recorded_by` metadata columns to
+the existing `graduation_checkins` table, adds the uniqueness and lookup
+indexes and creates the security-definer `apply_graduation_checkin`
+function with a fixed empty `search_path` and execution revoked from
+`public`, `anon` and `authenticated`. It never modifies previously deployed
+migrations and never creates duplicate attendance columns.
+`npm run checkin:verify-config` safely reports the function as missing until
+the migration is deployed. No new Vercel environment variable is required.
+
+### Browser testing procedure
+
+- Requires a signed-in staff account, the deployed CHECKIN-06 and
+  CHECKIN-07 migrations and at least one active test ticket.
+- Open `/staff/scanner`, validate a ticket, then in the arrival form use the
+  count controls or the Full Remaining Party, Graduate Only and Clear quick
+  actions, review the summary and press Confirm Arrival.
+- Confirm a partial arrival, press Scan Next Ticket, scan the same active
+  ticket again and admit the remaining party to reach Full Party Checked In.
+  Attendance never exceeds the registered allowance.
+
 ## Data-Protection Rules
 
 Production student information must not be used during application development.
@@ -717,9 +828,12 @@ import migration awaits manual deployment.
   migration awaits manual deployment
 - Mobile ticket scanner and secure validation (CHECKIN-06): implemented;
   the scan-attempt migration awaits manual deployment
-- Attendance check-in (CHECKIN-07): not started
+- Graduate and guest arrival check-in (CHECKIN-07): implemented; the
+  check-in workflow migration awaits manual deployment. Records positive
+  arrivals only; corrections and reversals belong to CHECKIN-08
 
 ## Planned Next Ticket
 
-CHECKIN-07: attendance check-in and admission confirmation. Later
-tickets cover reporting and ticket delivery (CHECKIN-09).
+CHECKIN-08: supervisor corrections and reversals through additional
+append-only entries, plus the live attendance dashboard. Later tickets
+cover reporting and ticket delivery (CHECKIN-09).

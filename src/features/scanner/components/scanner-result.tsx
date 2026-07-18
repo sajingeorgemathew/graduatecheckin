@@ -12,6 +12,11 @@ import type { ScanValidationView } from "../types";
 interface ScannerResultProps {
   view: ScanValidationView;
   onScanAnother: () => void;
+  /**
+   * Hides the built-in Scan Another button. Set when an arrival form is
+   * rendered below the result and owns the scan-next action instead.
+   */
+  hideScanButton?: boolean;
 }
 
 type Tone = "success" | "warning" | "danger" | "info";
@@ -201,7 +206,11 @@ function PartyCounts({ view }: { view: ScanValidationView }) {
   );
 }
 
-export function ScannerResult({ view, onScanAnother }: ScannerResultProps) {
+export function ScannerResult({
+  view,
+  onScanAnother,
+  hideScanButton = false,
+}: ScannerResultProps) {
   const content = panelContent(view);
 
   return (
@@ -253,13 +262,15 @@ export function ScannerResult({ view, onScanAnother }: ScannerResultProps) {
 
       {content.showParty && <PartyCounts view={view} />}
 
-      <button
-        type="button"
-        onClick={onScanAnother}
-        className="mt-5 min-h-12 w-full rounded-lg bg-navy px-5 py-3 text-base font-semibold text-white hover:bg-navy-light"
-      >
-        Scan Another Ticket
-      </button>
+      {!hideScanButton && (
+        <button
+          type="button"
+          onClick={onScanAnother}
+          className="mt-5 min-h-12 w-full rounded-lg bg-navy px-5 py-3 text-base font-semibold text-white hover:bg-navy-light"
+        >
+          Scan Another Ticket
+        </button>
+      )}
     </div>
   );
 }

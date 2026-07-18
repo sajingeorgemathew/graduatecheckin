@@ -21,10 +21,56 @@ import type {
   RecentValidationEntry,
   ScanValidationView,
 } from "../types";
+import { ArrivalForm } from "@/features/checkin/components/arrival-form";
+import type { ArrivalFormInput } from "@/features/checkin/components/arrival-form";
 import { CameraScanner } from "./camera-scanner";
 import { ManualCodeForm } from "./manual-code-form";
 import { RecentValidations } from "./recent-validations";
 import { ScannerResult } from "./scanner-result";
+
+/**
+ * Results eligible for arrival confirmation. Only a valid or a partial
+ * validation may proceed to the arrival form. An already checked-in,
+ * revoked, replaced, pending, invalid, wrong-event, blocked, rate-limited
+ * or error result never shows the form.
+ */
+const CHECKIN_ELIGIBLE_RESULTS: ReadonlySet<TicketValidationResult> = new Set([
+  "valid",
+  "partially_checked_in",
+]);
+
+/**
+ * Builds the arrival-form input from a validation view. Returns null unless
+ * the result is eligible and the trusted validation-attempt id and party
+ * counts are present. The id stays only in current component memory.
+ */
+function arrivalInputFrom(view: ScanValidationView): ArrivalFormInput | null {
+  if (
+    !CHECKIN_ELIGIBLE_RESULTS.has(view.result) ||
+    view.validationAttemptId === null ||
+    view.registeredAdultGuests === null ||
+    view.registeredChildren0To4 === null ||
+    view.registeredChildren5To10 === null ||
+    view.graduateArrived === null ||
+    view.adultGuestsArrived === null ||
+    view.children0To4Arrived === null ||
+    view.children5To10Arrived === null
+  ) {
+    return null;
+  }
+  return {
+    validationAttemptId: view.validationAttemptId,
+    graduateName: view.graduateName,
+    ticketCode: view.ticketCode,
+    registeredAdultGuests: view.registeredAdultGuests,
+    registeredChildren0To4: view.registeredChildren0To4,
+    registeredChildren5To10: view.registeredChildren5To10,
+    graduateArrived: view.graduateArrived,
+    adultGuestsArrived: view.adultGuestsArrived,
+    children0To4Arrived: view.children0To4Arrived,
+    children5To10Arrived: view.children5To10Arrived,
+  };
+}
 
 const OK_RESULTS: ReadonlySet<TicketValidationResult> = new Set([
   "valid",
@@ -188,7 +234,25 @@ export function ScannerShell() {
           <h2 className="mb-3 text-lg font-semibold text-navy">
             Current result
           </h2>
-          <ScannerResult view={view} onScanAnother={scanAnother} />
+          {(() => {
+            const arrivalInput = arrivalInputFrom(view);
+            return (
+              <div className="space-y-4">
+                <ScannerResult
+                  view={view}
+                  onScanAnother={scanAnother}
+                  hideScanButton={arrivalInput !== null}
+                />
+                {arrivalInput !== null && (
+                  <ArrivalForm
+                    key={arrivalInput.validationAttemptId}
+                    input={arrivalInput}
+                    onScanNext={scanAnother}
+                  />
+                )}
+              </div>
+            );
+          })()}
         </section>
       ) : (
         <>
