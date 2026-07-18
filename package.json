@@ -20,13 +20,15 @@
     "db:seed:mock": "tsx scripts/mock-data/seed.ts",
     "db:reset:mock": "tsx scripts/mock-data/reset.ts",
     "db:reset:mock-checkins": "tsx scripts/mock-data/reset-checkins.ts",
-    "auth:verify-admin": "tsx scripts/auth/verify-administrator.ts"
+    "auth:verify-admin": "tsx scripts/auth/verify-administrator.ts",
+    "tickets:verify-config": "tsx scripts/tickets/verify-config.ts"
   },
   "dependencies": {
     "@supabase/ssr": "^0.12.3",
     "@supabase/supabase-js": "^2.109.0",
     "lucide-react": "^1.24.0",
     "next": "16.2.10",
+    "qrcode": "^1.5.4",
     "react": "19.2.4",
     "react-dom": "19.2.4",
     "xlsx": "^0.18.5",
@@ -35,6 +37,7 @@
   "devDependencies": {
     "@tailwindcss/postcss": "^4",
     "@types/node": "^20",
+    "@types/qrcode": "^1.5.6",
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "@vitest/coverage-v8": "^4.1.10",

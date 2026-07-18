@@ -10,6 +10,8 @@ import "server-only";
 
 import { createHash } from "node:crypto";
 import type { StaffSession } from "@/features/auth/types";
+import { ACTIVE_EVENT_FAILURE_MESSAGES } from "@/features/events/active-event";
+import { resolveActiveEvent } from "@/features/events/resolve-active-event";
 import type {
   Json,
   RegistrationImportRow,
@@ -19,7 +21,7 @@ import type {
 } from "@/types/database";
 import { hasImportAccess } from "./access";
 import { compareRow, finalRowResult, findMissingExisting } from "./comparison";
-import { IMPORT_EVENT_CODE, IMPORT_SOURCE_SYSTEM } from "./constants";
+import { IMPORT_SOURCE_SYSTEM } from "./constants";
 import { selectWorksheet } from "./header-mapper";
 import {
   buildNormalizedSnapshot,
@@ -39,7 +41,6 @@ import { parseWorkbook, validateImportFile } from "./workbook-parser";
 import {
   createImport,
   findAppliedImportByHash,
-  getEventByCode,
   getExistingRegistrations,
   getImport,
   getImportRow,
@@ -162,14 +163,17 @@ export async function uploadAndPreview(
   // The hash is calculated before any parsing for duplicate protection.
   const fileSha256 = createHash("sha256").update(input.buffer).digest("hex");
 
-  const event = await getEventByCode(IMPORT_EVENT_CODE);
-  if (event === null) {
+  // The target event comes from ACTIVE_GRADUATION_EVENT_CODE and is never
+  // accepted from the browser. Closed and archived events are rejected.
+  const eventResolution = await resolveActiveEvent();
+  if (!eventResolution.ok) {
     return failure(
       409,
-      "event_not_found",
-      "The development event is not present. Seed the mock data first."
+      eventResolution.code,
+      ACTIVE_EVENT_FAILURE_MESSAGES[eventResolution.code]
     );
   }
+  const event = eventResolution.event;
 
   const previousApplied = await findAppliedImportByHash(event.id, fileSha256);
   if (previousApplied !== null) {
@@ -352,11 +356,11 @@ export async function listImportHistory(
   if (!hasImportAccess(actor)) {
     return accessFailure();
   }
-  const event = await getEventByCode(IMPORT_EVENT_CODE);
-  if (event === null) {
+  const eventResolution = await resolveActiveEvent();
+  if (!eventResolution.ok) {
     return { ok: true, data: [] };
   }
-  return { ok: true, data: await listImports(event.id) };
+  return { ok: true, data: await listImports(eventResolution.event.id) };
 }
 
 const TOGGLEABLE_RESULTS: RegistrationImportRowResult[] = [

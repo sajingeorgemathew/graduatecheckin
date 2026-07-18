@@ -41,7 +41,8 @@ This application manages graduation event ticketing and on-site check-in. It wil
 | `NEXT_PUBLIC_SUPABASE_URL` | Public | Supabase project URL. Pending setup. |
 | `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` | Public | Supabase publishable key. Pending setup. |
 | `SUPABASE_SERVICE_ROLE_KEY` | Server secret | Supabase service-role key. Server-only. Never expose to the browser. |
-| `TICKET_TOKEN_SECRET` | Server secret | Random secret used to sign ticket tokens. Generate with `node -e "console.log(require('crypto').randomBytes(48).toString('base64'))"`. |
+| `TICKET_TOKEN_SECRET` | Server secret | Random secret used to sign ticket tokens. Generate with `node -e "console.log(require('crypto').randomBytes(48).toString('base64'))"`. At least 32 bytes of entropy are required. |
+| `ACTIVE_GRADUATION_EVENT_CODE` | Server | Event code that Excel imports and ticket operations target. Local development uses `GRAD-2026-DEV`. Never exposed as a `NEXT_PUBLIC_` variable and never accepted from the browser. |
 | `ALLOW_DESTRUCTIVE_DEV_RESET` | Server | Must stay `false` except while intentionally running a development reset. |
 | `DEV_RESET_CONFIRMATION` | Server | Must stay empty except while intentionally running a development reset. |
 | `MOCK_EVENT_CODE` | Server | Fixed to `GRAD-2026-DEV`. The reset tooling refuses any other value. |
@@ -62,6 +63,7 @@ The application builds and runs before the Supabase values are added. Supabase-d
 | `npm run test` | Run the Vitest suite once. |
 | `npm run test:watch` | Run tests in watch mode. |
 | `npm run auth:verify-admin` | Read-only check that an active administrator exists. Prints counts and masked emails only and exits nonzero when none exist. |
+| `npm run tickets:verify-config` | Read-only check of the ticket configuration: active event code, ticket-secret validity, a one-way secret fingerprint and eligibility counts only. Never prints the secret, names, emails, phones or tokens. Exits nonzero on unsafe configuration. |
 
 ## Supabase CLI and Database
 
@@ -146,9 +148,12 @@ supervisors receive 403 responses, and no spreadsheet parsing occurs for
 unauthorized requests. The former `ENABLE_DEV_IMPORTS` development flag
 has been removed; no development feature flag is required or honored.
 
-The import target event is fixed server-side to `GRAD-2026-DEV` until a
-later event-management ticket. Event codes are never accepted from the
-browser.
+The import target event comes from the server-only
+`ACTIVE_GRADUATION_EVENT_CODE` variable (CHECKIN-05). Imports and ticket
+operations always resolve the same configured event server-side, and
+closed or archived events are rejected. Event codes are never accepted
+from the browser. When the real graduation event is ready, change the
+configuration value instead of the code.
 
 ### Import architecture
 
@@ -297,6 +302,8 @@ never compared alphabetically.
 | `/admin`, `/admin/imports`, `/admin/imports/new`, `/admin/imports/[importId]`, `/admin/staff`, `/admin/staff/new` | `administrator` |
 | `/api/admin/imports` and every import mutation | `administrator` |
 | `/api/admin/staff` and every staff mutation | `administrator` |
+| `/admin/tickets`, `/admin/tickets/generate`, `/admin/tickets/[ticketId]` | `administrator` |
+| `/api/admin/tickets/*` including QR rendering and every ticket mutation | `administrator` |
 | `POST /auth/signout` | Authenticated |
 
 Failures use 401 (no valid authentication), 403 (authenticated but
@@ -402,10 +409,114 @@ reachable only through trusted server-side code.
   an already issued Supabase session token before its refresh.
 - Rate limiting relies on Supabase Auth defaults.
 
-### Next ticket
+## Secure Ticket Generation (CHECKIN-05)
 
-CHECKIN-05 adds QR ticket generation. Scanning, check-in processing and
-dashboards follow in CHECKIN-06 through CHECKIN-08.
+```text
+Never change TICKET_TOKEN_SECRET after tickets have been issued unless
+every existing ticket will be replaced.
+
+Never expose raw ticket tokens in logs, URLs, database records or
+analytics.
+```
+
+### Ticket-token architecture
+
+- Each ticket QR token has the versioned structure
+  `v1.<ticket-id>.<signature>`. The signature is an HMAC SHA-256 over the
+  version and the ticket UUID, encoded as Base64URL. The signing key is
+  derived from `TICKET_TOKEN_SECRET` with HKDF.
+- Raw tokens are never stored. Because the token depends only on the
+  ticket UUID and the server secret, the server reconstructs the exact
+  token on demand (for QR rendering) and discards it immediately.
+  Signature verification uses constant-time comparison.
+- Only the SHA-256 hash of the token (64 lowercase hexadecimal
+  characters) is stored in `graduation_tickets.token_hash`, enforced by a
+  database format constraint. The CHECKIN-06 scanner will hash a scanned
+  token and compare hashes; the database never sees a raw token.
+- Changing `TICKET_TOKEN_SECRET` invalidates every issued QR ticket. The
+  secret is never regenerated or rotated automatically.
+
+### QR payload format
+
+The QR code contains exactly `TAE-GRAD1:` followed by the raw token, for
+example `TAE-GRAD1:v1.<ticket-id>.<signature>`. It is not an HTTP URL and
+contains no name, email, phone number, guest detail or payment data. The
+versioned prefix lets the CHECKIN-06 scanner reject unrelated QR codes
+before token verification. QR images are rendered server-side only, by
+the administrator-protected route
+`GET /api/admin/tickets/[ticketId]/qr`, with `private, no-store` caching.
+The route URL contains only the ticket UUID, never a token.
+
+### Human-readable backup codes
+
+Each ticket also receives a unique code such as `GR26-ABCD-EFGH`,
+generated from cryptographically secure randomness with ambiguous
+characters (0, O, 1, I, L) excluded. Codes are never derived from student
+information, are unique in the database and exist as a manual staff
+fallback only; they never replace secure QR-token validation.
+
+### Bulk generation, replacement and revocation
+
+- `/admin/tickets` shows summary cards and a searchable, paginated,
+  registration-centric ticket table (25 rows per page, desktop table and
+  mobile cards). Search covers graduate name, ticket code and source
+  registration ID only.
+- `/admin/tickets/generate` previews eligible registrations without
+  active tickets, supports select-all and individual selection, requires
+  the exact confirmation text `GENERATE TICKETS` and a server-issued
+  idempotency key, and calls the atomic database function
+  `public.apply_ticket_generation_batch`. Double submission returns the
+  previous batch result instead of generating twice. Tickets are only
+  generated for `eligible` registrations of the configured event that do
+  not already hold an active ticket.
+- `/admin/tickets/[ticketId]` shows the digital ticket preview, issue
+  details, the activity timeline and the Replace Ticket and Revoke
+  Ticket actions (exact confirmations `REPLACE TICKET` and
+  `REVOKE TICKET`, each with a required 5 to 500 character reason).
+  Replacement issues a completely new ticket UUID, code and token via
+  `public.replace_graduation_ticket`; the old QR can never validate
+  again. Revocation via `public.revoke_graduation_ticket` invalidates a
+  ticket without generating a replacement.
+- Every ticket action writes an append-oriented row to
+  `public.ticket_activity_log` with the acting administrator, timestamp,
+  reason and an opaque request ID. Raw tokens, token hashes and contact
+  details are never audited.
+- All ticket pages and mutations independently require an active
+  administrator server-side. Scanners, supervisors, anonymous callers and
+  inactive staff are denied; staff requiring a password change are
+  redirected to the password-change flow.
+
+### Ticket-design privacy
+
+The digital ticket shows the graduate name, event date, venue, registered
+party counts, ticket code and QR only. Emails, phone numbers, source
+order IDs, guest names, payment data, database UUIDs, token hashes and
+raw tokens are never displayed. Revoked and replaced tickets render with
+a large watermark and their QR is only available as an explicitly
+watermarked historical preview.
+
+### Print-preview limitations
+
+The ticket detail page includes print CSS so the ticket preview prints
+cleanly from the browser (navigation hidden, ticket kept on one page).
+This is a convenience only; CHECKIN-09 creates the controlled PDF files
+and email distribution. No PDF or ticket email exists in CHECKIN-05.
+
+### Dependencies on later tickets
+
+- CHECKIN-06 adds the staff scanner that reads the `TAE-GRAD1:` payload
+  and validates token hashes. No scanning or check-in exists yet.
+- CHECKIN-09 adds PDF generation and email delivery of tickets.
+
+### Manual deployment steps
+
+- The migration
+  `supabase/migrations/*_extend_secure_ticket_generation.sql` awaits
+  manual review and deployment (for example `npx supabase db push`
+  against the linked project). It only adds new objects and constraints
+  and never modifies previously deployed migrations.
+- Vercel requires the existing variables plus
+  `ACTIVE_GRADUATION_EVENT_CODE`. No other new variable is needed.
 
 ## Data-Protection Rules
 
@@ -447,10 +558,11 @@ import migration awaits manual deployment.
 - Staff authentication and access roles (CHECKIN-04): implemented; the
   staff authentication migration and the one-time first-administrator
   bootstrap await manual completion
-- QR ticket generation: not started
+- Secure ticket generation (CHECKIN-05): implemented; the ticket
+  migration awaits manual deployment
 - Check-in scanner: not started
 
 ## Planned Next Ticket
 
-CHECKIN-05: QR ticket generation. Later tickets cover ticket delivery,
-scanning, check-in processing and reporting.
+CHECKIN-06: QR scanning and check-in. Later tickets cover check-in
+processing, reporting and ticket delivery (CHECKIN-09).
