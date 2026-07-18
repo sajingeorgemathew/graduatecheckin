@@ -32,5 +32,5 @@ export const SCANNER_SUPPORT_TEXT =
   "registered party.";
 
 export const SCANNER_VALIDATION_ONLY_NOTICE =
-  "This screen validates the ticket only. Attendance confirmation will be " +
-  "added in the next stage.";
+  "Scan a ticket to validate it, then confirm who is arriving now. " +
+  "Attendance is recorded against the registration, not the ticket.";

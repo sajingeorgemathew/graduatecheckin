@@ -399,6 +399,9 @@ export type GraduationCheckinRow = {
   idempotency_key: string;
   notes: string | null;
   reverses_checkin_id: string | null;
+  request_id: string | null;
+  validation_attempt_id: string | null;
+  recorded_by: string | null;
   is_test: boolean;
   created_at: string;
 }
@@ -418,6 +421,9 @@ export type GraduationCheckinInsert = {
   idempotency_key: string;
   notes?: string | null;
   reverses_checkin_id?: string | null;
+  request_id?: string | null;
+  validation_attempt_id?: string | null;
+  recorded_by?: string | null;
   is_test?: boolean;
   created_at?: string;
 }
@@ -669,6 +675,19 @@ export type Database = {
     };
     Views: Record<string, never>;
     Functions: {
+      apply_graduation_checkin: {
+        Args: {
+          p_actor_user_id: string;
+          p_event_id: string;
+          p_validation_attempt_id: string;
+          p_request_id: string;
+          p_graduate_arriving: number;
+          p_adult_guests_arriving: number;
+          p_children_0_4_arriving: number;
+          p_children_5_10_arriving: number;
+        };
+        Returns: Json;
+      };
       apply_registration_import: {
         Args: { p_import_id: string };
         Returns: Json;

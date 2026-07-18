@@ -3,6 +3,7 @@ import {
   Database,
   FileSpreadsheet,
   KeyRound,
+  LayoutDashboard,
   QrCode,
   ScanLine,
   ShieldCheck,
@@ -75,15 +76,24 @@ const statusCards: StatusCard[] = [
     detail:
       "Staff validate graduate QR tickets and ticket codes at the entrance.",
     done: true,
-    badge: "Ready for protected testing",
+    badge: "Complete",
     icon: <ScanLine aria-hidden className="h-6 w-6" />,
   },
   {
-    title: "Attendance check-in",
-    detail: "Admission confirmation arrives with the check-in milestone.",
+    title: "Graduate and guest check-in",
+    detail:
+      "Staff confirm who is arriving after a valid scan. Attendance is " +
+      "recorded against the registration.",
+    done: true,
+    badge: "Ready for protected testing",
+    icon: <CheckCircle2 aria-hidden className="h-6 w-6" />,
+  },
+  {
+    title: "Live attendance dashboard",
+    detail: "Real-time attendance monitoring arrives in a later milestone.",
     done: false,
     badge: "Not implemented",
-    icon: <CheckCircle2 aria-hidden className="h-6 w-6" />,
+    icon: <LayoutDashboard aria-hidden className="h-6 w-6" />,
   },
 ];
 

@@ -126,9 +126,12 @@ describe("scanner route safety", () => {
     expect(staffHome).toContain("/staff/scanner");
   });
 
-  it("keeps the validation-only notice on the scanner page", () => {
+  it("keeps the scanner notice on the scanner page", () => {
+    // CHECKIN-07 extends the scanner with arrival confirmation, so the
+    // notice now describes scanning plus check-in rather than validation
+    // only. The page still renders the shared notice constant.
     const constants = read("features/scanner/constants.ts");
-    expect(constants).toContain("validates the ticket only");
+    expect(constants).toContain("SCANNER_VALIDATION_ONLY_NOTICE");
     const page = read("app/staff/scanner/page.tsx");
     expect(page).toContain("SCANNER_VALIDATION_ONLY_NOTICE");
   });

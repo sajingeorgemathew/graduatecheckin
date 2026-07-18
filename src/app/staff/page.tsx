@@ -19,9 +19,9 @@ interface ToolCard {
 function toolCardsFor(session: StaffSession): ToolCard[] {
   const cards: ToolCard[] = [
     {
-      title: "Scan tickets",
+      title: "Scan and Check In",
       detail:
-        "Scan graduate QR tickets and validate them at the event entrance.",
+        "Validate tickets and record graduate and registered-party arrivals.",
       badge: "Available now",
       available: true,
       href: "/staff/scanner",
