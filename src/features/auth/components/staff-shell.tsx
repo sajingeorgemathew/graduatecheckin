@@ -26,7 +26,8 @@ function navLinksFor(session: StaffSession): NavLink[] {
     links.push(
       { href: "/admin", label: "Admin" },
       { href: "/admin/imports", label: "Imports" },
-      { href: "/admin/staff", label: "Staff Accounts" }
+      { href: "/admin/staff", label: "Staff Accounts" },
+      { href: "/admin/tickets", label: "Ticket Management" }
     );
   }
   return links;

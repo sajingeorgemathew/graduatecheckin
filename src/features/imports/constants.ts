@@ -37,12 +37,6 @@ export const ALLOWED_FILE_EXTENSION = ".xlsx";
 
 export const MAX_FILE_SIZE_BYTES = 10 * 1024 * 1024;
 
-/**
- * The import target event is fixed for this ticket. Event codes are never
- * accepted from the browser. Later tickets add event selection.
- */
-export const IMPORT_EVENT_CODE = "GRAD-2026-DEV";
-
 /** Source system recorded for Excel registration exports. */
 export const IMPORT_SOURCE_SYSTEM = "registration_export" as const;
 

@@ -29,9 +29,9 @@ const adminCards: AdminCard[] = [
   },
   {
     title: "Ticket Management",
-    detail: "Generate and manage QR admission tickets.",
-    href: null,
-    badge: "Available in CHECKIN-05",
+    detail: "Generate, preview, replace and revoke secure graduation tickets.",
+    href: "/admin/tickets",
+    badge: "Available now",
     icon: <QrCode aria-hidden className="h-6 w-6" />,
   },
   {

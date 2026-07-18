@@ -44,10 +44,12 @@ describe("server environment", () => {
       APP_ENV: undefined,
       SUPABASE_SERVICE_ROLE_KEY: undefined,
       TICKET_TOKEN_SECRET: undefined,
+      ACTIVE_GRADUATION_EVENT_CODE: undefined,
     });
     expect(env.APP_ENV).toBe("development");
     expect(env.SUPABASE_SERVICE_ROLE_KEY).toBe("");
     expect(env.TICKET_TOKEN_SECRET).toBe("");
+    expect(env.ACTIVE_GRADUATION_EVENT_CODE).toBe("");
   });
 
   it("accepts fictional secrets without altering them", () => {
@@ -55,6 +57,7 @@ describe("server environment", () => {
       APP_ENV: "test",
       SUPABASE_SERVICE_ROLE_KEY: "fictional-service-role-key",
       TICKET_TOKEN_SECRET: "fictional-ticket-token-secret",
+      ACTIVE_GRADUATION_EVENT_CODE: "GRAD-2026-DEV",
     });
     expect(env.SUPABASE_SERVICE_ROLE_KEY).toBe("fictional-service-role-key");
     expect(env.TICKET_TOKEN_SECRET).toBe("fictional-ticket-token-secret");
@@ -68,6 +71,7 @@ describe("server environment", () => {
         APP_ENV: fictionalSecretValue,
         SUPABASE_SERVICE_ROLE_KEY: "fictional-service-role-key",
         TICKET_TOKEN_SECRET: "fictional-ticket-token-secret",
+        ACTIVE_GRADUATION_EVENT_CODE: "GRAD-2026-DEV",
       });
     } catch (error) {
       message = error instanceof Error ? error.message : String(error);

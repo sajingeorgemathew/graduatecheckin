@@ -63,8 +63,16 @@ const statusCards: StatusCard[] = [
     icon: <ShieldCheck aria-hidden className="h-6 w-6" />,
   },
   {
-    title: "QR ticket generation",
-    detail: "Secure QR admission tickets arrive with the ticketing milestone.",
+    title: "Secure ticket generation",
+    detail:
+      "Administrators generate, replace and revoke secure QR admission tickets.",
+    done: true,
+    badge: "Ready for protected testing",
+    icon: <QrCode aria-hidden className="h-6 w-6" />,
+  },
+  {
+    title: "QR scanner",
+    detail: "Entrance scanning arrives with the check-in milestone.",
     done: false,
     badge: "Not implemented",
     icon: <ScanLine aria-hidden className="h-6 w-6" />,

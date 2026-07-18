@@ -39,6 +39,14 @@ export type GuestCategory = "adult" | "child_0_4" | "child_5_10";
 
 export type TicketStatus = "pending" | "active" | "revoked" | "replaced";
 
+export type TicketGenerationBatchStatus =
+  | "processing"
+  | "completed"
+  | "partial"
+  | "failed";
+
+export type TicketActivityAction = "generated" | "replaced" | "revoked";
+
 export type StaffRole = "scanner" | "supervisor" | "administrator";
 
 export type CheckinMethod =
@@ -188,11 +196,16 @@ export type GraduationTicketRow = {
   registration_id: string;
   ticket_code: string;
   token_hash: string;
+  token_version: number;
   status: TicketStatus;
   issued_at: string | null;
   sent_at: string | null;
   revoked_at: string | null;
   replaced_by_ticket_id: string | null;
+  generation_batch_id: string | null;
+  issued_by: string | null;
+  revoked_by: string | null;
+  revocation_reason: string | null;
   is_test: boolean;
   created_at: string;
   updated_at: string;
@@ -203,17 +216,89 @@ export type GraduationTicketInsert = {
   registration_id: string;
   ticket_code: string;
   token_hash: string;
+  token_version?: number;
   status?: TicketStatus;
   issued_at?: string | null;
   sent_at?: string | null;
   revoked_at?: string | null;
   replaced_by_ticket_id?: string | null;
+  generation_batch_id?: string | null;
+  issued_by?: string | null;
+  revoked_by?: string | null;
+  revocation_reason?: string | null;
   is_test?: boolean;
   created_at?: string;
   updated_at?: string;
 }
 
 export type GraduationTicketUpdate = Partial<GraduationTicketInsert>;
+
+export type TicketGenerationBatchRow = {
+  id: string;
+  event_id: string;
+  requested_by: string | null;
+  idempotency_key: string;
+  status: TicketGenerationBatchStatus;
+  candidate_count: number;
+  generated_count: number;
+  skipped_count: number;
+  error_count: number;
+  is_test: boolean;
+  created_at: string;
+  completed_at: string | null;
+}
+
+export type TicketGenerationBatchInsert = {
+  id?: string;
+  event_id: string;
+  requested_by?: string | null;
+  idempotency_key: string;
+  status?: TicketGenerationBatchStatus;
+  candidate_count?: number;
+  generated_count?: number;
+  skipped_count?: number;
+  error_count?: number;
+  is_test?: boolean;
+  created_at?: string;
+  completed_at?: string | null;
+}
+
+export type TicketGenerationBatchUpdate = Partial<TicketGenerationBatchInsert>;
+
+/**
+ * Append-oriented audit log of ticket actions. The metadata column must
+ * never contain raw tokens, token hashes, ticket secrets, emails, phone
+ * numbers, guest names, access tokens or cookies.
+ */
+export type TicketActivityLogRow = {
+  id: string;
+  ticket_id: string;
+  registration_id: string;
+  actor_user_id: string | null;
+  action: TicketActivityAction;
+  previous_ticket_id: string | null;
+  replacement_ticket_id: string | null;
+  reason: string | null;
+  request_id: string | null;
+  metadata: Json;
+  created_at: string;
+}
+
+export type TicketActivityLogInsert = {
+  id?: string;
+  ticket_id: string;
+  registration_id: string;
+  actor_user_id?: string | null;
+  action: TicketActivityAction;
+  previous_ticket_id?: string | null;
+  replacement_ticket_id?: string | null;
+  reason?: string | null;
+  request_id?: string | null;
+  metadata?: Json;
+  created_at?: string;
+}
+
+export type TicketActivityLogUpdate = Partial<TicketActivityLogInsert>;
 
 export type StaffProfileRow = {
   user_id: string;
@@ -473,6 +558,18 @@ export type Database = {
         Update: GraduationTicketUpdate;
         Relationships: [];
       };
+      ticket_generation_batches: {
+        Row: TicketGenerationBatchRow;
+        Insert: TicketGenerationBatchInsert;
+        Update: TicketGenerationBatchUpdate;
+        Relationships: [];
+      };
+      ticket_activity_log: {
+        Row: TicketActivityLogRow;
+        Insert: TicketActivityLogInsert;
+        Update: TicketActivityLogUpdate;
+        Relationships: [];
+      };
       staff_profiles: {
         Row: StaffProfileRow;
         Insert: StaffProfileInsert;
@@ -519,6 +616,38 @@ export type Database = {
         };
         Returns: Json;
       };
+      apply_ticket_generation_batch: {
+        Args: {
+          p_actor_user_id: string;
+          p_event_id: string;
+          p_idempotency_key: string;
+          p_request_id: string;
+          p_items: Json;
+        };
+        Returns: Json;
+      };
+      replace_graduation_ticket: {
+        Args: {
+          p_actor_user_id: string;
+          p_ticket_id: string;
+          p_new_ticket_id: string;
+          p_new_ticket_code: string;
+          p_new_token_hash: string;
+          p_new_token_version: number;
+          p_reason: string;
+          p_request_id: string;
+        };
+        Returns: Json;
+      };
+      revoke_graduation_ticket: {
+        Args: {
+          p_actor_user_id: string;
+          p_ticket_id: string;
+          p_reason: string;
+          p_request_id: string;
+        };
+        Returns: Json;
+      };
     };
     Enums: {
       graduation_event_status: GraduationEventStatus;
@@ -527,6 +656,8 @@ export type Database = {
       payment_status: PaymentStatus;
       guest_category: GuestCategory;
       ticket_status: TicketStatus;
+      ticket_generation_batch_status: TicketGenerationBatchStatus;
+      ticket_activity_action: TicketActivityAction;
       staff_role: StaffRole;
       staff_access_action: StaffAccessAction;
       checkin_method: CheckinMethod;
