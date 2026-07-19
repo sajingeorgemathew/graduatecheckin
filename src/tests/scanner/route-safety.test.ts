@@ -113,11 +113,11 @@ describe("scanner route safety", () => {
   });
 
   it("shows the scanner to all staff roles in the navigation", () => {
-    const shell = read("features/auth/components/staff-shell.tsx");
-    expect(shell).toContain("/staff/scanner");
-    expect(shell).toContain("Scan Tickets");
-    const scannerLinkIndex = shell.indexOf("/staff/scanner");
-    const adminBlockIndex = shell.indexOf("canAccessAdmin(session.role)");
+    const navigation = read("features/auth/navigation.ts");
+    expect(navigation).toContain("/staff/scanner");
+    expect(navigation).toContain("Scan Tickets");
+    const scannerLinkIndex = navigation.indexOf("/staff/scanner");
+    const adminBlockIndex = navigation.indexOf("canAccessAdmin(session.role)");
     expect(scannerLinkIndex).toBeLessThan(adminBlockIndex);
   });
 

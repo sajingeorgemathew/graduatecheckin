@@ -6,37 +6,14 @@
  */
 
 import Link from "next/link";
+import { StaffNav } from "@/features/auth/components/staff-nav";
 import { ROLE_LABELS } from "@/features/auth/constants";
-import { canAccessAdmin, hasMinimumRole } from "@/features/auth/permissions";
+import { navLinksFor } from "@/features/auth/navigation";
 import type { StaffSession } from "@/features/auth/types";
 
 interface StaffShellProps {
   session: StaffSession;
   children: React.ReactNode;
-}
-
-interface NavLink {
-  href: string;
-  label: string;
-}
-
-function navLinksFor(session: StaffSession): NavLink[] {
-  const links: NavLink[] = [
-    { href: "/staff", label: "Staff Home" },
-    { href: "/staff/scanner", label: "Scan Tickets" },
-  ];
-  if (hasMinimumRole(session.role, "supervisor")) {
-    links.push({ href: "/staff/attendance", label: "Attendance Dashboard" });
-  }
-  if (canAccessAdmin(session.role)) {
-    links.push(
-      { href: "/admin", label: "Admin" },
-      { href: "/admin/imports", label: "Imports" },
-      { href: "/admin/staff", label: "Staff Accounts" },
-      { href: "/admin/tickets", label: "Ticket Management" }
-    );
-  }
-  return links;
 }
 
 export function StaffShell({ session, children }: StaffShellProps) {
@@ -73,22 +50,7 @@ export function StaffShell({ session, children }: StaffShellProps) {
             </form>
           </div>
         </div>
-        <nav
-          aria-label="Staff navigation"
-          className="border-t border-white/10 bg-navy-dark"
-        >
-          <div className="mx-auto flex w-full max-w-6xl flex-wrap gap-1 px-6 py-2 sm:px-10">
-            {links.map((link) => (
-              <Link
-                key={link.href}
-                href={link.href}
-                className="rounded-md px-3 py-1.5 text-sm font-semibold text-white/85 hover:bg-navy-light hover:text-gold-light"
-              >
-                {link.label}
-              </Link>
-            ))}
-          </div>
-        </nav>
+        <StaffNav links={links} />
       </header>
       <div className="flex flex-1 flex-col">{children}</div>
     </div>
