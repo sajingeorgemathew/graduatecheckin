@@ -57,6 +57,12 @@ export type CheckinMethod =
 
 export type CheckinAction = "admission" | "correction" | "reversal";
 
+export type AttendanceEntryKind =
+  | "scan_arrival"
+  | "manual_arrival"
+  | "correction"
+  | "reversal";
+
 export type TicketScanMethod = "qr" | "manual_code";
 
 export type TicketValidationResult =
@@ -392,12 +398,14 @@ export type GraduationCheckinRow = {
   staff_name_snapshot: string | null;
   method: CheckinMethod;
   action: CheckinAction;
+  entry_kind: AttendanceEntryKind;
   graduate_delta: number;
   adult_guest_delta: number;
   child_0_4_delta: number;
   child_5_10_delta: number;
   idempotency_key: string;
   notes: string | null;
+  reason: string | null;
   reverses_checkin_id: string | null;
   request_id: string | null;
   validation_attempt_id: string | null;
@@ -414,12 +422,14 @@ export type GraduationCheckinInsert = {
   staff_name_snapshot?: string | null;
   method: CheckinMethod;
   action: CheckinAction;
+  entry_kind?: AttendanceEntryKind;
   graduate_delta?: number;
   adult_guest_delta?: number;
   child_0_4_delta?: number;
   child_5_10_delta?: number;
   idempotency_key: string;
   notes?: string | null;
+  reason?: string | null;
   reverses_checkin_id?: string | null;
   request_id?: string | null;
   validation_attempt_id?: string | null;
@@ -688,6 +698,44 @@ export type Database = {
         };
         Returns: Json;
       };
+      apply_manual_graduation_arrival: {
+        Args: {
+          p_actor_user_id: string;
+          p_event_id: string;
+          p_registration_id: string;
+          p_request_id: string;
+          p_graduate_arriving: number;
+          p_adult_guests_arriving: number;
+          p_children_0_4_arriving: number;
+          p_children_5_10_arriving: number;
+          p_reason: string;
+        };
+        Returns: Json;
+      };
+      apply_attendance_correction: {
+        Args: {
+          p_actor_user_id: string;
+          p_event_id: string;
+          p_registration_id: string;
+          p_request_id: string;
+          p_graduate_delta: number;
+          p_adult_guest_delta: number;
+          p_child_0_4_delta: number;
+          p_child_5_10_delta: number;
+          p_reason: string;
+        };
+        Returns: Json;
+      };
+      reverse_graduation_checkin: {
+        Args: {
+          p_actor_user_id: string;
+          p_event_id: string;
+          p_original_checkin_id: string;
+          p_request_id: string;
+          p_reason: string;
+        };
+        Returns: Json;
+      };
       apply_registration_import: {
         Args: { p_import_id: string };
         Returns: Json;
@@ -747,6 +795,7 @@ export type Database = {
       staff_access_action: StaffAccessAction;
       checkin_method: CheckinMethod;
       checkin_action: CheckinAction;
+      attendance_entry_kind: AttendanceEntryKind;
       ticket_scan_method: TicketScanMethod;
       ticket_validation_result: TicketValidationResult;
       registration_import_status: RegistrationImportStatus;

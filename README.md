@@ -784,6 +784,142 @@ the migration is deployed. No new Vercel environment variable is required.
   ticket again and admit the remaining party to reach Full Party Checked In.
   Attendance never exceeds the registered allowance.
 
+## Live Attendance Dashboard and Supervisor Corrections (CHECKIN-08)
+
+CHECKIN-08 adds the event-day attendance management system for supervisors
+and administrators: a live dashboard, manual registration search, manual
+arrival without a QR ticket, supervisor corrections and exact reversals.
+Scanner-role users are always denied; every dashboard page and API
+authorizes supervisor-level staff server-side and never trusts a role,
+event id or actor id from the browser.
+
+### Append-only audit history
+
+Attendance records are append-only. Corrections and reversals create new
+records and never edit or delete the original attendance entry. A manual
+arrival inserts one positive row, a correction inserts one row with positive
+or negative deltas, and a reversal inserts one row holding the exact negative
+of an eligible original entry, linked to it through `reverses_checkin_id`.
+
+### Attendance belongs to the registration
+
+Attendance belongs to the registration. Ticket replacement does not reset,
+duplicate or transfer attendance. Every dashboard total, search result,
+correction and reversal recomputes attendance across all
+`graduation_checkins` rows of the registration, clamped between zero and the
+registered allowance, so a replacement ticket never double-counts and totals
+never exceed the registered allowance or display negative attendance.
+
+### Live dashboard calculations and refresh
+
+- `/staff/attendance` shows eligible registrations, graduates arrived, fully
+  and partially checked-in counts, not-yet-arrived, expected total
+  attendance, total people arrived, remaining expected attendance and each
+  category as arrived out of registered, using accessible CSS progress bars
+  with no charting dependency.
+- Blocked, failed, cancelled and review-required registrations are excluded
+  from eligible attendance expectations. A registration is complete only when
+  the graduate and every registered guest and child have arrived; a
+  registration with guests present but the graduate absent is partial.
+- The dashboard polls `GET /api/staff/attendance/summary` every 15 seconds
+  while the tab is visible, pauses when the tab is hidden, prevents
+  overlapping requests, offers a manual Refresh button, shows the last-updated
+  time and a refreshing status, and warns when data is more than 60 seconds
+  stale. The summary response is private and `no-store`; no Supabase
+  subscription is exposed to the browser.
+
+### Manual search and signed registration references
+
+- Search is limited to the active event and supports graduate name (minimum
+  two characters), exact ticket code and source registration id (exact or
+  prefix). Email and phone search are not supported. Results are capped at 25.
+- Search is live: results update while typing after a 300 ms debounce, a
+  complete ticket code searches immediately, and pressing Enter or the Search
+  button searches at once. Only the newest request wins; a slow, stale
+  response is discarded, and clearing the field clears the results.
+- Results can be narrowed with server-enforced filters that combine with the
+  term and update automatically: attendance status (not arrived, partially
+  arrived, fully checked in), registration status (eligible, review required,
+  cancelled, failed), ticket status (active, no active ticket, replaced,
+  revoked, pending) and test or production. Reset Filters restores the
+  defaults. With no term and an active filter, the filters browse the event,
+  for example to list signed-up registrations.
+- RSVP status offers All and Signed up. Signed up means a matching RSVP
+  registration exists. Not signed up is intentionally unavailable: an accurate
+  not-signed-up list requires the complete invited-graduate roster, which this
+  schema does not contain today (there is no invitation or roster table;
+  `graduation_registrations` holds only RSVP responses). A not-signed-up list
+  must never be fabricated from missing registration rows and awaits importing
+  the complete invitation roster in a later ticket.
+- Search never returns a database UUID. Each result carries a short-lived,
+  server-signed registration reference (`ra1.<id>.<expiry>.<signature>`,
+  HMAC SHA-256, event-bound, at most 15 minutes). Reversible history entries
+  carry a signed entry reference (`en1.<id>.<expiry>.<signature>`). References
+  are kept only in current React memory and are never placed in a URL, query
+  string, cookie, `localStorage` or `sessionStorage`, never logged and never
+  stored in the database.
+
+### Manual arrival, correction and reversal
+
+- Manual arrival, correction and reversal all require a reason between 5 and
+  500 characters. Corrections require typing `APPLY CORRECTION` and reversals
+  require typing `REVERSE ENTRY` to confirm.
+- Manual arrival inserts positive deltas only and never exceeds the
+  registered allowance. Corrections permit positive or negative deltas and
+  keep the graduate total between 0 and 1 and every guest and child total
+  between 0 and its registered allowance. A reversal is blocked when it would
+  create negative attendance; staff are directed to a correction instead.
+- Reversing a reversal and reversing an already-reversed entry are blocked,
+  both in the interface and by a partial unique index on
+  `reverses_checkin_id` in the database.
+
+### Concurrency and idempotency
+
+Every write locks the registration and recalculates totals inside the
+database transaction, so two supervisors submitting attendance for the same
+registration cannot over-admit: the losing request receives a safe conflict
+with refreshed totals. Each action uses one request id; a unique index on
+`(recorded_by, request_id)` and an idempotency check return the original
+result for a duplicate submission, so a retry never creates a second row.
+
+### Role restrictions
+
+The dashboard, search, manual arrival, correction and reversal are available
+to supervisor and administrator roles only. Scanner-role users continue to
+see only the scanner workflow and are denied at the page, API and database
+levels. The three database functions are `security definer` with a fixed
+empty `search_path`, independently verify an active supervisor or
+administrator, and have execution revoked from `public`, `anon` and
+`authenticated`.
+
+### Manual migration deployment (CHECKIN-08)
+
+The migration
+`supabase/migrations/*_create_attendance_supervisor_workflow.sql` awaits
+manual review and deployment (for example `npx supabase db push` against the
+linked project). It is additive only: it adds the `attendance_entry_kind`
+enum, the `entry_kind` and `reason` columns, the entry-kind, reversal-link
+and double-reversal indexes and the three security-definer functions. It
+reuses `reverses_checkin_id` as the reversal link and `recorded_by` as the
+acting supervisor, never creates duplicate attendance columns, never modifies
+previously deployed migrations and never updates or deletes any existing row.
+`npm run attendance:verify-config` safely reports the new functions as
+missing until the migration is deployed. No new Vercel environment variable
+is required.
+
+### Event-day testing procedure
+
+- Requires a signed-in supervisor or administrator, the deployed CHECKIN-07
+  and CHECKIN-08 migrations and at least one eligible test registration.
+- Open `/staff/attendance`, confirm the summary loads and refreshes, search
+  for a registration by name, open View Attendance, and try Manual Arrival
+  and Correct Attendance. Reverse an eligible entry from the attendance
+  history. Confirm totals never exceed the registered allowance and never go
+  negative, and that the original entry stays visible next to its reversal.
+
+CHECKIN-08 does not generate ticket PDFs or send ticket emails; those remain
+for CHECKIN-09.
+
 ## Data-Protection Rules
 
 Production student information must not be used during application development.
@@ -831,9 +967,12 @@ import migration awaits manual deployment.
 - Graduate and guest arrival check-in (CHECKIN-07): implemented; the
   check-in workflow migration awaits manual deployment. Records positive
   arrivals only; corrections and reversals belong to CHECKIN-08
+- Live attendance dashboard, manual search and supervisor corrections
+  (CHECKIN-08): implemented; the attendance supervisor-workflow migration
+  awaits manual deployment. Manual arrival, corrections and reversals are
+  append-only and supervisor protected
 
 ## Planned Next Ticket
 
-CHECKIN-08: supervisor corrections and reversals through additional
-append-only entries, plus the live attendance dashboard. Later tickets
-cover reporting and ticket delivery (CHECKIN-09).
+CHECKIN-09: ticket PDF generation and email delivery. CHECKIN-10 covers
+production readiness and final quality testing.

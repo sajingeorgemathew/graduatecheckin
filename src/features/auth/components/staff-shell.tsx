@@ -7,7 +7,7 @@
 
 import Link from "next/link";
 import { ROLE_LABELS } from "@/features/auth/constants";
-import { canAccessAdmin } from "@/features/auth/permissions";
+import { canAccessAdmin, hasMinimumRole } from "@/features/auth/permissions";
 import type { StaffSession } from "@/features/auth/types";
 
 interface StaffShellProps {
@@ -25,6 +25,9 @@ function navLinksFor(session: StaffSession): NavLink[] {
     { href: "/staff", label: "Staff Home" },
     { href: "/staff/scanner", label: "Scan Tickets" },
   ];
+  if (hasMinimumRole(session.role, "supervisor")) {
+    links.push({ href: "/staff/attendance", label: "Attendance Dashboard" });
+  }
   if (canAccessAdmin(session.role)) {
     links.push(
       { href: "/admin", label: "Admin" },
