@@ -89,11 +89,20 @@ const statusCards: StatusCard[] = [
     icon: <CheckCircle2 aria-hidden className="h-6 w-6" />,
   },
   {
-    title: "Live attendance dashboard",
-    detail: "Real-time attendance monitoring arrives in a later milestone.",
+    title: "Attendance dashboard and corrections",
+    detail:
+      "Supervisors monitor arrivals, search registrations and correct " +
+      "attendance with an append-only audit history.",
+    done: true,
+    badge: "Ready for protected testing",
+    icon: <LayoutDashboard aria-hidden className="h-6 w-6" />,
+  },
+  {
+    title: "Ticket PDF and email",
+    detail: "Ticket document generation and email delivery arrive later.",
     done: false,
     badge: "Not implemented",
-    icon: <LayoutDashboard aria-hidden className="h-6 w-6" />,
+    icon: <QrCode aria-hidden className="h-6 w-6" />,
   },
 ];
 

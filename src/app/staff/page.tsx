@@ -30,11 +30,12 @@ function toolCardsFor(session: StaffSession): ToolCard[] {
   ];
   if (session.role === "supervisor" || canAccessAdmin(session.role)) {
     cards.push({
-      title: "Dashboard and corrections",
-      detail: "Monitor attendance and correct check-ins.",
-      badge: "Available in CHECKIN-08",
-      available: false,
-      href: null,
+      title: "Attendance Dashboard",
+      detail:
+        "Monitor arrivals, find registrations, and correct attendance records.",
+      badge: "Available now",
+      available: true,
+      href: "/staff/attendance",
       icon: <LayoutDashboard aria-hidden className="h-6 w-6" />,
     });
   }
