@@ -607,6 +607,213 @@ export type RegistrationImportRowInsert = {
 
 export type RegistrationImportRowUpdate = Partial<RegistrationImportRowInsert>;
 
+// ---------------------------------------------------------------------
+// CHECKIN-09A: branded PDF ticket documents and export batches.
+// ---------------------------------------------------------------------
+
+export type TicketDocumentStatusEnum =
+  | "current"
+  | "superseded"
+  | "invalidated";
+
+export type TicketDocumentInvalidationReasonEnum =
+  | "superseded"
+  | "replaced"
+  | "revoked"
+  | "invalid";
+
+export type TicketDocumentBatchStatusEnum =
+  | "draft"
+  | "generating"
+  | "ready"
+  | "partial"
+  | "failed"
+  | "exported"
+  | "cancelled";
+
+export type TicketDocumentBatchPurposeEnum =
+  | "initial"
+  | "updated"
+  | "replacement"
+  | "resend_preparation";
+
+export type TicketDocumentBatchItemStatusEnum =
+  | "ready"
+  | "excluded"
+  | "failed";
+
+export type GraduationEventTicketSettingsRow = {
+  id: string;
+  event_id: string;
+  display_title: string;
+  description: string;
+  program_schedule: Json;
+  primary_logo_asset: string;
+  secondary_asset: string | null;
+  template_version: number;
+  instructions: string | null;
+  created_at: string;
+  updated_at: string;
+  updated_by: string | null;
+}
+
+export type GraduationEventTicketSettingsInsert = {
+  id?: string;
+  event_id: string;
+  display_title: string;
+  description: string;
+  program_schedule?: Json;
+  primary_logo_asset: string;
+  secondary_asset?: string | null;
+  template_version?: number;
+  instructions?: string | null;
+  created_at?: string;
+  updated_at?: string;
+  updated_by?: string | null;
+}
+
+export type GraduationEventTicketSettingsUpdate =
+  Partial<GraduationEventTicketSettingsInsert>;
+
+export type GraduationTicketDocumentRow = {
+  id: string;
+  event_id: string;
+  registration_id: string;
+  ticket_id: string;
+  document_version: number;
+  template_version: number;
+  status: TicketDocumentStatusEnum;
+  storage_bucket: string;
+  storage_path: string;
+  file_name: string;
+  mime_type: string;
+  file_size_bytes: number;
+  sha256_checksum: string;
+  source_fingerprint: string;
+  graduate_name_snapshot: string;
+  ticket_code_snapshot: string;
+  registered_party_snapshot: Json;
+  event_snapshot: Json;
+  generated_by: string | null;
+  generated_at: string;
+  superseded_at: string | null;
+  invalidated_at: string | null;
+  invalidation_reason: TicketDocumentInvalidationReasonEnum | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export type GraduationTicketDocumentInsert = {
+  id?: string;
+  event_id: string;
+  registration_id: string;
+  ticket_id: string;
+  document_version: number;
+  template_version: number;
+  status?: TicketDocumentStatusEnum;
+  storage_bucket?: string;
+  storage_path: string;
+  file_name: string;
+  mime_type?: string;
+  file_size_bytes: number;
+  sha256_checksum: string;
+  source_fingerprint: string;
+  graduate_name_snapshot: string;
+  ticket_code_snapshot: string;
+  registered_party_snapshot: Json;
+  event_snapshot: Json;
+  generated_by?: string | null;
+  generated_at?: string;
+  superseded_at?: string | null;
+  invalidated_at?: string | null;
+  invalidation_reason?: TicketDocumentInvalidationReasonEnum | null;
+  created_at?: string;
+  updated_at?: string;
+}
+
+export type GraduationTicketDocumentUpdate =
+  Partial<GraduationTicketDocumentInsert>;
+
+export type GraduationTicketDocumentBatchRow = {
+  id: string;
+  event_id: string;
+  batch_code: string;
+  status: TicketDocumentBatchStatusEnum;
+  purpose: TicketDocumentBatchPurposeEnum;
+  selected_count: number;
+  ready_count: number;
+  failed_count: number;
+  excluded_count: number;
+  manifest_sha256: string | null;
+  created_by: string | null;
+  created_at: string;
+  completed_at: string | null;
+  exported_at: string | null;
+  cancelled_at: string | null;
+  updated_at: string;
+}
+
+export type GraduationTicketDocumentBatchInsert = {
+  id?: string;
+  event_id: string;
+  batch_code: string;
+  status?: TicketDocumentBatchStatusEnum;
+  purpose?: TicketDocumentBatchPurposeEnum;
+  selected_count?: number;
+  ready_count?: number;
+  failed_count?: number;
+  excluded_count?: number;
+  manifest_sha256?: string | null;
+  created_by?: string | null;
+  created_at?: string;
+  completed_at?: string | null;
+  exported_at?: string | null;
+  cancelled_at?: string | null;
+  updated_at?: string;
+}
+
+export type GraduationTicketDocumentBatchUpdate =
+  Partial<GraduationTicketDocumentBatchInsert>;
+
+export type GraduationTicketDocumentBatchItemRow = {
+  id: string;
+  batch_id: string;
+  registration_id: string;
+  ticket_id: string | null;
+  document_id: string | null;
+  item_status: TicketDocumentBatchItemStatusEnum;
+  exclusion_reason: string | null;
+  recipient_name_snapshot: string;
+  recipient_email_snapshot: string | null;
+  document_version_snapshot: number | null;
+  pdf_file_name_snapshot: string | null;
+  pdf_sha256_snapshot: string | null;
+  party_snapshot: Json;
+  created_at: string;
+  updated_at: string;
+}
+
+export type GraduationTicketDocumentBatchItemInsert = {
+  id?: string;
+  batch_id: string;
+  registration_id: string;
+  ticket_id?: string | null;
+  document_id?: string | null;
+  item_status?: TicketDocumentBatchItemStatusEnum;
+  exclusion_reason?: string | null;
+  recipient_name_snapshot: string;
+  recipient_email_snapshot?: string | null;
+  document_version_snapshot?: number | null;
+  pdf_file_name_snapshot?: string | null;
+  pdf_sha256_snapshot?: string | null;
+  party_snapshot?: Json;
+  created_at?: string;
+  updated_at?: string;
+}
+
+export type GraduationTicketDocumentBatchItemUpdate =
+  Partial<GraduationTicketDocumentBatchItemInsert>;
+
 export type Database = {
   public: {
     Tables: {
@@ -674,6 +881,30 @@ export type Database = {
         Row: RegistrationImportRow;
         Insert: RegistrationImportInsert;
         Update: RegistrationImportUpdate;
+        Relationships: [];
+      };
+      graduation_event_ticket_settings: {
+        Row: GraduationEventTicketSettingsRow;
+        Insert: GraduationEventTicketSettingsInsert;
+        Update: GraduationEventTicketSettingsUpdate;
+        Relationships: [];
+      };
+      graduation_ticket_documents: {
+        Row: GraduationTicketDocumentRow;
+        Insert: GraduationTicketDocumentInsert;
+        Update: GraduationTicketDocumentUpdate;
+        Relationships: [];
+      };
+      graduation_ticket_document_batches: {
+        Row: GraduationTicketDocumentBatchRow;
+        Insert: GraduationTicketDocumentBatchInsert;
+        Update: GraduationTicketDocumentBatchUpdate;
+        Relationships: [];
+      };
+      graduation_ticket_document_batch_items: {
+        Row: GraduationTicketDocumentBatchItemRow;
+        Insert: GraduationTicketDocumentBatchItemInsert;
+        Update: GraduationTicketDocumentBatchItemUpdate;
         Relationships: [];
       };
       registration_import_rows: {
@@ -781,6 +1012,33 @@ export type Database = {
         };
         Returns: Json;
       };
+      finalize_graduation_ticket_document: {
+        Args: {
+          p_actor_user_id: string;
+          p_ticket_id: string;
+          p_document_id: string;
+          p_template_version: number;
+          p_storage_bucket: string;
+          p_storage_path: string;
+          p_file_name: string;
+          p_file_size_bytes: number;
+          p_sha256_checksum: string;
+          p_source_fingerprint: string;
+          p_graduate_name_snapshot: string;
+          p_ticket_code_snapshot: string;
+          p_registered_party_snapshot: Json;
+          p_event_snapshot: Json;
+        };
+        Returns: Json;
+      };
+      invalidate_graduation_ticket_documents: {
+        Args: {
+          p_actor_user_id: string;
+          p_ticket_id: string;
+          p_reason: TicketDocumentInvalidationReasonEnum;
+        };
+        Returns: Json;
+      };
     };
     Enums: {
       graduation_event_status: GraduationEventStatus;
@@ -800,6 +1058,11 @@ export type Database = {
       ticket_validation_result: TicketValidationResult;
       registration_import_status: RegistrationImportStatus;
       registration_import_row_result: RegistrationImportRowResult;
+      ticket_document_status: TicketDocumentStatusEnum;
+      ticket_document_invalidation_reason: TicketDocumentInvalidationReasonEnum;
+      ticket_document_batch_status: TicketDocumentBatchStatusEnum;
+      ticket_document_batch_purpose: TicketDocumentBatchPurposeEnum;
+      ticket_document_batch_item_status: TicketDocumentBatchItemStatusEnum;
     };
     CompositeTypes: Record<string, never>;
   };

@@ -15,6 +15,7 @@ import {
   ticketSecretFingerprint,
   validateTicketSecret,
 } from "../../src/features/tickets/token";
+import { verifyTicketDocuments } from "./verify-documents";
 
 interface EventRow {
   id: string;
@@ -175,11 +176,28 @@ async function main(): Promise<void> {
     }
   }
 
+  // CHECKIN-09A: branded PDF ticket document checks. These are additive
+  // and never weaken the CHECKIN-05 checks above.
+  if (url.length > 0 && serviceRoleKey.length > 0 && eventCode.length > 0) {
+    try {
+      const documentResult = await verifyTicketDocuments(eventCode);
+      if (!documentResult.passed) {
+        unsafe = true;
+      }
+    } catch {
+      console.error(
+        "The ticket document verification could not complete."
+      );
+      unsafe = true;
+    }
+  }
+
   if (unsafe) {
     console.error("Ticket configuration verification failed.");
     process.exitCode = 1;
     return;
   }
+  console.log("");
   console.log("Ticket configuration verification passed.");
 }
 

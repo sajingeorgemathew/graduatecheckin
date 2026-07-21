@@ -74,12 +74,20 @@ export default async function TicketManagementPage({ searchParams }: PageProps) 
             </p>
           )}
         </div>
-        <Link
-          href="/admin/tickets/generate"
-          className="inline-block rounded-md bg-navy px-4 py-2 text-center text-sm font-semibold text-gold-light shadow-sm hover:bg-navy-light"
-        >
-          Generate tickets
-        </Link>
+        <div className="flex flex-wrap gap-2">
+          <Link
+            href="/admin/tickets/documents"
+            className="inline-block rounded-md border border-navy/20 bg-white px-4 py-2 text-center text-sm font-semibold text-navy shadow-sm hover:border-navy/40"
+          >
+            PDF ticket documents
+          </Link>
+          <Link
+            href="/admin/tickets/generate"
+            className="inline-block rounded-md bg-navy px-4 py-2 text-center text-sm font-semibold text-gold-light shadow-sm hover:bg-navy-light"
+          >
+            Generate tickets
+          </Link>
+        </div>
       </div>
 
       {batchResult !== null && batchResult.ok && (

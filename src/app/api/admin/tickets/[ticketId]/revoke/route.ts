@@ -1,6 +1,7 @@
 import type { NextResponse } from "next/server";
 import { guardFailureResponse } from "@/features/auth/errors";
 import { requireAdministrator } from "@/features/auth/guards";
+import { invalidateDocumentsForTicket } from "@/features/ticket-documents/service";
 import {
   ticketInternalErrorResponse,
   ticketServiceResponse,
@@ -38,6 +39,19 @@ export async function POST(
       ticketId,
       body
     );
+
+    // CHECKIN-09A: once the ticket is revoked, its PDF documents are no
+    // longer admissible and must not enter an export batch. This runs
+    // after the revocation succeeded and never alters the revocation
+    // result, the ticket row or any attendance record.
+    if (result.ok) {
+      await invalidateDocumentsForTicket(
+        guard.session.userId,
+        ticketId,
+        "revoked"
+      );
+    }
+
     return ticketServiceResponse(result);
   } catch {
     return ticketInternalErrorResponse();

@@ -22,14 +22,17 @@
     "db:reset:mock-checkins": "tsx scripts/mock-data/reset-checkins.ts",
     "auth:verify-admin": "tsx scripts/auth/verify-administrator.ts",
     "tickets:verify-config": "tsx scripts/tickets/verify-config.ts",
+    "tickets:configure-event": "tsx scripts/tickets/configure-convocation-2026.ts",
     "scanner:verify-config": "tsx scripts/scanner/verify-config.ts",
     "checkin:verify-config": "tsx scripts/checkin/verify-config.ts",
     "attendance:verify-config": "tsx scripts/attendance/verify-config.ts"
   },
   "dependencies": {
+    "@react-pdf/renderer": "^4.5.1",
     "@supabase/ssr": "^0.12.3",
     "@supabase/supabase-js": "^2.109.0",
     "@zxing/browser": "^0.2.1",
+    "fflate": "^0.8.3",
     "lucide-react": "^1.24.0",
     "next": "16.2.10",
     "qrcode": "^1.5.4",

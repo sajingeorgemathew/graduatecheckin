@@ -15,34 +15,103 @@ import type { EventLookupClient, TargetEventRecord } from "./reset-guards";
 
 export type AdminClient = SupabaseClient<Database>;
 
+/**
+ * Raised when a required CLI environment variable is absent. Callers can
+ * detect this precisely (instanceof) so a genuinely missing variable is
+ * never confused with an unrelated client-construction or network failure.
+ */
+export class MissingEnvError extends Error {
+  readonly missing: readonly string[];
+  constructor(missing: readonly string[]) {
+    super(
+      `Missing required environment variables: ${missing.join(", ")}. ` +
+        "Add them to .env.local before running database scripts."
+    );
+    this.name = "MissingEnvError";
+    this.missing = missing;
+  }
+}
+
 export function loadLocalEnv(): void {
   // Loads .env.local without overriding variables already present in the
   // process environment. Values must never be printed.
   loadDotenv({ path: ".env.local", override: false, quiet: true });
 }
 
-export function createScriptAdminClient(): AdminClient {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL ?? "";
-  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY ?? "";
+/**
+ * A do-nothing WebSocket stand-in for the realtime transport.
+ *
+ * @supabase/supabase-js v2 constructs a RealtimeClient inside createClient,
+ * which eagerly resolves a WebSocket constructor. On Node.js < 22 there is
+ * no global WebSocket, so that resolution throws
+ * "native WebSocket not found" even though these CLI scripts never open a
+ * realtime channel. Supplying an explicit transport short-circuits the
+ * lookup. It is only ever instantiated when a channel subscribes, which
+ * these administrative scripts never do, so the stub is never used.
+ */
+class NoopRealtimeSocket {
+  constructor() {
+    throw new Error(
+      "Realtime is disabled for CLI scripts and must not be used."
+    );
+  }
+}
+
+function assertScriptEnv(): { url: string; serviceRoleKey: string } {
+  const url = (process.env.NEXT_PUBLIC_SUPABASE_URL ?? "").trim();
+  const serviceRoleKey = (process.env.SUPABASE_SERVICE_ROLE_KEY ?? "").trim();
 
   const missing: string[] = [];
-  if (url.trim().length === 0) {
+  if (url.length === 0) {
     missing.push("NEXT_PUBLIC_SUPABASE_URL");
   }
-  if (serviceRoleKey.trim().length === 0) {
+  if (serviceRoleKey.length === 0) {
     missing.push("SUPABASE_SERVICE_ROLE_KEY");
   }
   if (missing.length > 0) {
-    throw new Error(
-      `Missing required environment variables: ${missing.join(", ")}. ` +
-        "Add them to .env.local before running database scripts."
-    );
+    throw new MissingEnvError(missing);
   }
+  return { url, serviceRoleKey };
+}
+
+export function createScriptAdminClient(): AdminClient {
+  const { url, serviceRoleKey } = assertScriptEnv();
 
   return createClient<Database>(url, serviceRoleKey, {
     auth: {
       persistSession: false,
       autoRefreshToken: false,
+    },
+    realtime: {
+      // See NoopRealtimeSocket: keeps createClient from requiring a native
+      // WebSocket on Node < 22. Never used by CLI scripts.
+      transport: NoopRealtimeSocket as never,
+    },
+  });
+}
+
+/**
+ * A public-role client using the anon/publishable key. Read-only in these
+ * scripts: it exists so verification can prove that deny-by-default RLS
+ * blocks the public role. It must never be used for administrative writes.
+ * Returns null when the publishable key is not configured, so verification
+ * can report that accurately instead of failing.
+ */
+export function createScriptAnonClient(): AdminClient | null {
+  const url = (process.env.NEXT_PUBLIC_SUPABASE_URL ?? "").trim();
+  const anonKey = (
+    process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY ?? ""
+  ).trim();
+  if (url.length === 0 || anonKey.length === 0) {
+    return null;
+  }
+  return createClient<Database>(url, anonKey, {
+    auth: {
+      persistSession: false,
+      autoRefreshToken: false,
+    },
+    realtime: {
+      transport: NoopRealtimeSocket as never,
     },
   });
 }

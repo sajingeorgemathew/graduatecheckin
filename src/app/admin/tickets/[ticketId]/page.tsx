@@ -8,6 +8,8 @@ import {
   TicketStatusBadge,
   RegistrationStatusBadge,
 } from "@/features/tickets/components/ticket-status-badge";
+import { DocumentSection } from "@/features/ticket-documents/components/document-section";
+import { loadTicketDocumentSection } from "@/features/ticket-documents/read-service";
 import { getTicketDetail } from "@/features/tickets/service";
 
 export const dynamic = "force-dynamic";
@@ -56,6 +58,10 @@ export default async function TicketDetailPage({ params }: PageProps) {
     );
   }
   const ticket = result.data;
+
+  // Additive PDF section. A failure here must never break the existing
+  // ticket detail view, so the section is simply omitted.
+  const documentResult = await loadTicketDocumentSection(session, ticketId);
 
   return (
     <main className="mx-auto w-full max-w-4xl flex-1 px-6 py-8 sm:px-10">
@@ -161,6 +167,13 @@ export default async function TicketDetailPage({ params }: PageProps) {
         <div className="mt-6">
           <TicketActions ticketId={ticket.ticketId} />
         </div>
+      )}
+
+      {documentResult.ok && (
+        <DocumentSection
+          data={documentResult.data}
+          canRegenerate={ticket.status === "active"}
+        />
       )}
 
       <h2 className="mt-8 text-lg font-semibold text-navy">Activity</h2>
