@@ -308,9 +308,10 @@ describe("CLI scripts never print secrets", () => {
 // --------------------------------------------------------------------------
 
 describe("configure command safety", () => {
+  // Line-ending agnostic: the working copy may be checked out with CRLF.
   const configureSource = readRepo(
     "scripts/tickets/configure-convocation-2026.ts"
-  );
+  ).replace(/\r\n/g, "\n");
 
   it("performs no write before the dry-run early return", () => {
     const dryRunReturn = configureSource.indexOf("Dry-run complete.");

@@ -42,6 +42,7 @@ This application manages graduation event ticketing and on-site check-in. It wil
 | `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` | Public | Supabase publishable key. Pending setup. |
 | `SUPABASE_SERVICE_ROLE_KEY` | Server secret | Supabase service-role key. Server-only. Never expose to the browser. |
 | `TICKET_TOKEN_SECRET` | Server secret | Random secret used to sign ticket tokens. Generate with `node -e "console.log(require('crypto').randomBytes(48).toString('base64'))"`. At least 32 bytes of entropy are required. |
+| `TICKET_DISTRIBUTION_SECRET` | Server secret | CHECKIN-09B row-signing secret for ticket-distribution delivery rows. Server-only, minimum 32 random bytes, and **must be different from `TICKET_TOKEN_SECRET`**. Generate with `openssl rand -base64 32`. Set it in `.env.local` and in the Vercel server environment. Never use the `NEXT_PUBLIC_` prefix and never commit the value. |
 | `ACTIVE_GRADUATION_EVENT_CODE` | Server | Event code that Excel imports and ticket operations target. Local development uses `GRAD-2026-DEV`. Never exposed as a `NEXT_PUBLIC_` variable and never accepted from the browser. |
 | `ALLOW_DESTRUCTIVE_DEV_RESET` | Server | Must stay `false` except while intentionally running a development reset. |
 | `DEV_RESET_CONFIRMATION` | Server | Must stay empty except while intentionally running a development reset. |
@@ -919,6 +920,94 @@ is required.
 
 CHECKIN-08 does not generate ticket PDFs or send ticket emails; those remain
 for CHECKIN-09.
+
+## Ticket Distribution via Google Apps Script (CHECKIN-09B)
+
+CHECKIN-09B adds the pipeline that emails the branded PDF tickets from
+CHECKIN-09A. **The application never sends email and never connects to Gmail.**
+It prepares signed delivery rows, a Google Apps Script bound to a Google Sheet
+sends them, and the per-attempt results are imported back into a permanent,
+append-only delivery history. See
+[`tickets/CHECKIN-09B-google-apps-script-ticket-distribution.md`](tickets/CHECKIN-09B-google-apps-script-ticket-distribution.md)
+for the full design and
+[`google-apps-script/graduation-ticket-sender/README.md`](google-apps-script/graduation-ticket-sender/README.md)
+for the sender.
+
+### Production event separation
+
+`GRAD-2026-DEV` is the test event and is never reused. CHECKIN-09B creates a
+distinct **`CONVOCATION-2026`** production event as a non-test, draft event
+(activation belongs to CHECKIN-10):
+
+```bash
+npm run events:create-production -- --dry-run   # report only, no writes
+npm run events:create-production                # create or converge (idempotent)
+npm run events:verify-production                # read-only verification
+```
+
+The create script copies no registrations, tickets, PDFs, check-ins,
+attendance, imports or delivery records, never changes
+`ACTIVE_GRADUATION_EVENT_CODE`, and never modifies `GRAD-2026-DEV`.
+
+### Required environment variable
+
+`TICKET_DISTRIBUTION_SECRET` — server-only, ≥ 32 random bytes, **separate from
+`TICKET_TOKEN_SECRET`**. Generate with `openssl rand -base64 32`; set it in
+`.env.local` and the Vercel server environment; never commit it and never use
+the `NEXT_PUBLIC_` prefix. It signs delivery rows so the Sheet cannot alter a
+recipient, PDF checksum or mode without the app detecting it on import.
+
+### Migration
+
+Additive migration
+`supabase/migrations/20260721120000_create_ticket_distribution_delivery.sql`
+adds the delivery batch, delivery, append-only attempt and result-import
+tables plus two hardened security-definer functions. Apply it with the manual
+deployment procedure used for earlier tickets (not run as part of this
+ticket). RLS denies all `anon`/`authenticated` access, including scanner and
+supervisor staff.
+
+### Administrator workflow
+
+`/admin/tickets/distribution` (linked from ticket management) shows delivery
+counts, prepares a delivery batch from a completed PDF document batch (test or
+production mode), downloads the signed `send-queue.csv`, and cancels unsent
+batches. `/admin/tickets/distribution/import-results` previews and applies an
+Apps Script results CSV; re-importing the same file is idempotent.
+
+### Google Apps Script and Drive
+
+Install the sender from `google-apps-script/graduation-ticket-sender/` into a
+Sheet owned by `office@torontoacademy.ca`, run **Setup Workbook**, fill
+**Configuration**, and place the batch PDFs in a Drive folder referenced by
+`DRIVE_BATCH_FOLDER_ID`. In test mode all mail goes only to
+`TEST_RECIPIENT_EMAIL` with a `[TEST]` subject; production sending requires the
+authorized sender and the exact confirmation phrase
+`SEND CONVOCATION 2026 TICKETS`.
+
+### Test pilot, results and resend
+
+Prepare a test batch, load the CSV in the Sheet, Send Test for one row, Export
+Results, and import them to confirm the round trip. To resend a corrected
+registration, update it in the app and prepare a new `resend` batch — never
+hand-edit the intended recipient in the Sheet, because the app rejects an
+altered row on import. `Scan Bounce Messages` is a manual, office-account-only
+review that never marks a message delivered.
+
+### Guest flexibility blocker
+
+The distribution workflow imposes no adult-guest cap, but an approved upstream
+schema rule still caps each guest count at 2
+(`graduation_registrations_adults_range` and related constraints in the
+CHECKIN-02 migration). This is reported as a production blocker and left
+unchanged; raising it is a CHECKIN-10 decision.
+
+### CHECKIN-10 handoff
+
+CHECKIN-09B does not import the final real registration report and does not
+activate production check-in. CHECKIN-10 imports the real report, generates
+real PDFs, runs the real distribution, decides on the two-guest limit, and
+activates `CONVOCATION-2026` for live check-in.
 
 ## Data-Protection Rules
 

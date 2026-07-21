@@ -23,6 +23,8 @@
     "auth:verify-admin": "tsx scripts/auth/verify-administrator.ts",
     "tickets:verify-config": "tsx scripts/tickets/verify-config.ts",
     "tickets:configure-event": "tsx scripts/tickets/configure-convocation-2026.ts",
+    "events:create-production": "tsx scripts/events/create-convocation-production.ts",
+    "events:verify-production": "tsx scripts/events/verify-convocation-production.ts",
     "scanner:verify-config": "tsx scripts/scanner/verify-config.ts",
     "checkin:verify-config": "tsx scripts/checkin/verify-config.ts",
     "attendance:verify-config": "tsx scripts/attendance/verify-config.ts"

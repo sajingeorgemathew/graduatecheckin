@@ -642,6 +642,240 @@ export type TicketDocumentBatchItemStatusEnum =
   | "excluded"
   | "failed";
 
+// CHECKIN-09B: ticket-distribution delivery model.
+
+export type TicketDeliveryModeEnum = "test" | "production";
+
+export type TicketDeliveryPurposeEnum =
+  | "initial"
+  | "updated"
+  | "replacement"
+  | "resend";
+
+export type TicketDeliveryBatchStatusEnum =
+  | "draft"
+  | "prepared"
+  | "sending"
+  | "partial"
+  | "completed"
+  | "failed"
+  | "cancelled";
+
+export type TicketDeliveryStatusEnum =
+  | "prepared"
+  | "sent"
+  | "failed"
+  | "bounce_detected"
+  | "resend_required"
+  | "resent"
+  | "cancelled"
+  | "suppressed";
+
+export type TicketDeliveryAttemptOutcomeEnum =
+  | "sent"
+  | "failed"
+  | "bounce_detected"
+  | "skipped"
+  | "cancelled";
+
+export type TicketDeliveryResultImportStatusEnum =
+  | "uploaded"
+  | "previewed"
+  | "applied"
+  | "rejected";
+
+export type GraduationTicketDeliveryBatchRow = {
+  id: string;
+  event_id: string;
+  document_batch_id: string | null;
+  delivery_batch_code: string;
+  mode: TicketDeliveryModeEnum;
+  purpose: TicketDeliveryPurposeEnum;
+  status: TicketDeliveryBatchStatusEnum;
+  prepared_count: number;
+  sent_count: number;
+  failed_count: number;
+  bounced_count: number;
+  resend_required_count: number;
+  cancelled_count: number;
+  created_by: string | null;
+  created_at: string;
+  prepared_at: string | null;
+  completed_at: string | null;
+  cancelled_at: string | null;
+  source_manifest_sha256: string | null;
+  results_imported_at: string | null;
+  updated_at: string;
+}
+
+export type GraduationTicketDeliveryBatchInsert = {
+  id?: string;
+  event_id: string;
+  document_batch_id?: string | null;
+  delivery_batch_code: string;
+  mode: TicketDeliveryModeEnum;
+  purpose?: TicketDeliveryPurposeEnum;
+  status?: TicketDeliveryBatchStatusEnum;
+  prepared_count?: number;
+  sent_count?: number;
+  failed_count?: number;
+  bounced_count?: number;
+  resend_required_count?: number;
+  cancelled_count?: number;
+  created_by?: string | null;
+  created_at?: string;
+  prepared_at?: string | null;
+  completed_at?: string | null;
+  cancelled_at?: string | null;
+  source_manifest_sha256?: string | null;
+  results_imported_at?: string | null;
+  updated_at?: string;
+}
+
+export type GraduationTicketDeliveryBatchUpdate =
+  Partial<GraduationTicketDeliveryBatchInsert>;
+
+export type GraduationTicketDeliveryRow = {
+  id: string;
+  event_id: string;
+  delivery_batch_id: string;
+  registration_id: string;
+  ticket_id: string | null;
+  document_id: string | null;
+  delivery_reference: string;
+  recipient_name_snapshot: string;
+  recipient_email_snapshot: string;
+  ticket_code_snapshot: string;
+  document_version_snapshot: number;
+  pdf_file_name_snapshot: string;
+  pdf_sha256_snapshot: string;
+  party_snapshot: Json;
+  row_signature: string;
+  status: TicketDeliveryStatusEnum;
+  attempt_count: number;
+  last_attempt_at: string | null;
+  first_sent_at: string | null;
+  latest_sent_at: string | null;
+  bounced_at: string | null;
+  resend_required_at: string | null;
+  cancelled_at: string | null;
+  last_error_code: string | null;
+  last_error_message: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export type GraduationTicketDeliveryInsert = {
+  id?: string;
+  event_id: string;
+  delivery_batch_id: string;
+  registration_id: string;
+  ticket_id?: string | null;
+  document_id?: string | null;
+  delivery_reference: string;
+  recipient_name_snapshot: string;
+  recipient_email_snapshot: string;
+  ticket_code_snapshot: string;
+  document_version_snapshot: number;
+  pdf_file_name_snapshot: string;
+  pdf_sha256_snapshot: string;
+  party_snapshot?: Json;
+  row_signature: string;
+  status?: TicketDeliveryStatusEnum;
+  attempt_count?: number;
+  last_attempt_at?: string | null;
+  first_sent_at?: string | null;
+  latest_sent_at?: string | null;
+  bounced_at?: string | null;
+  resend_required_at?: string | null;
+  cancelled_at?: string | null;
+  last_error_code?: string | null;
+  last_error_message?: string | null;
+  created_at?: string;
+  updated_at?: string;
+}
+
+export type GraduationTicketDeliveryUpdate =
+  Partial<GraduationTicketDeliveryInsert>;
+
+export type GraduationTicketDeliveryAttemptRow = {
+  id: string;
+  delivery_id: string;
+  result_import_id: string | null;
+  attempt_reference: string;
+  attempt_number: number;
+  intended_recipient_snapshot: string;
+  actual_recipient_snapshot: string | null;
+  mode: TicketDeliveryModeEnum;
+  outcome: TicketDeliveryAttemptOutcomeEnum;
+  attempted_at: string;
+  sent_by: string | null;
+  provider: string | null;
+  error_code: string | null;
+  error_message: string | null;
+  source_row_hash: string | null;
+  created_at: string;
+}
+
+export type GraduationTicketDeliveryAttemptInsert = {
+  id?: string;
+  delivery_id: string;
+  result_import_id?: string | null;
+  attempt_reference: string;
+  attempt_number: number;
+  intended_recipient_snapshot: string;
+  actual_recipient_snapshot?: string | null;
+  mode: TicketDeliveryModeEnum;
+  outcome: TicketDeliveryAttemptOutcomeEnum;
+  attempted_at: string;
+  sent_by?: string | null;
+  provider?: string | null;
+  error_code?: string | null;
+  error_message?: string | null;
+  source_row_hash?: string | null;
+  created_at?: string;
+}
+
+export type GraduationTicketDeliveryAttemptUpdate =
+  Partial<GraduationTicketDeliveryAttemptInsert>;
+
+export type GraduationTicketDeliveryResultImportRow = {
+  id: string;
+  event_id: string;
+  delivery_batch_id: string;
+  file_name: string;
+  file_sha256: string;
+  status: TicketDeliveryResultImportStatusEnum;
+  total_rows: number;
+  accepted_rows: number;
+  duplicate_rows: number;
+  warning_rows: number;
+  rejected_rows: number;
+  imported_by: string | null;
+  imported_at: string | null;
+  created_at: string;
+}
+
+export type GraduationTicketDeliveryResultImportInsert = {
+  id?: string;
+  event_id: string;
+  delivery_batch_id: string;
+  file_name: string;
+  file_sha256: string;
+  status?: TicketDeliveryResultImportStatusEnum;
+  total_rows?: number;
+  accepted_rows?: number;
+  duplicate_rows?: number;
+  warning_rows?: number;
+  rejected_rows?: number;
+  imported_by?: string | null;
+  imported_at?: string | null;
+  created_at?: string;
+}
+
+export type GraduationTicketDeliveryResultImportUpdate =
+  Partial<GraduationTicketDeliveryResultImportInsert>;
+
 export type GraduationEventTicketSettingsRow = {
   id: string;
   event_id: string;
@@ -913,9 +1147,60 @@ export type Database = {
         Update: RegistrationImportRowUpdate;
         Relationships: [];
       };
+      graduation_ticket_delivery_batches: {
+        Row: GraduationTicketDeliveryBatchRow;
+        Insert: GraduationTicketDeliveryBatchInsert;
+        Update: GraduationTicketDeliveryBatchUpdate;
+        Relationships: [];
+      };
+      graduation_ticket_deliveries: {
+        Row: GraduationTicketDeliveryRow;
+        Insert: GraduationTicketDeliveryInsert;
+        Update: GraduationTicketDeliveryUpdate;
+        Relationships: [];
+      };
+      graduation_ticket_delivery_attempts: {
+        Row: GraduationTicketDeliveryAttemptRow;
+        Insert: GraduationTicketDeliveryAttemptInsert;
+        Update: GraduationTicketDeliveryAttemptUpdate;
+        Relationships: [];
+      };
+      graduation_ticket_delivery_result_imports: {
+        Row: GraduationTicketDeliveryResultImportRow;
+        Insert: GraduationTicketDeliveryResultImportInsert;
+        Update: GraduationTicketDeliveryResultImportUpdate;
+        Relationships: [];
+      };
     };
     Views: Record<string, never>;
     Functions: {
+      record_ticket_delivery_attempt: {
+        Args: {
+          p_actor_user_id: string;
+          p_delivery_id: string;
+          p_result_import_id: string | null;
+          p_attempt_reference: string;
+          p_attempt_mode: TicketDeliveryModeEnum;
+          p_outcome: TicketDeliveryAttemptOutcomeEnum;
+          p_intended_recipient: string;
+          p_actual_recipient: string | null;
+          p_attempted_at: string;
+          p_sent_by: string | null;
+          p_provider: string | null;
+          p_error_code: string | null;
+          p_error_message: string | null;
+          p_source_row_hash: string | null;
+          p_new_delivery_status: TicketDeliveryStatusEnum | null;
+        };
+        Returns: Json;
+      };
+      cancel_ticket_delivery_batch: {
+        Args: {
+          p_actor_user_id: string;
+          p_batch_id: string;
+        };
+        Returns: Json;
+      };
       apply_graduation_checkin: {
         Args: {
           p_actor_user_id: string;
