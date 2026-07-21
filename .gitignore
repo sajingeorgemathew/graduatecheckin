@@ -40,3 +40,5 @@ next-env.d.ts
 
 # Vitest coverage
 coverage/
+
+ticket-design-reference/

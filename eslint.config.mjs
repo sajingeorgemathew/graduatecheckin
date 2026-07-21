@@ -12,6 +12,8 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // Local scratch directory (also git-ignored); not application code.
+    "tmp/**",
   ]),
 ]);
 

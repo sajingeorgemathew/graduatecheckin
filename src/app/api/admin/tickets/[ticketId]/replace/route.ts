@@ -1,6 +1,7 @@
 import type { NextResponse } from "next/server";
 import { guardFailureResponse } from "@/features/auth/errors";
 import { requireAdministrator } from "@/features/auth/guards";
+import { invalidateDocumentsForTicket } from "@/features/ticket-documents/service";
 import {
   ticketInternalErrorResponse,
   ticketServiceResponse,
@@ -38,6 +39,20 @@ export async function POST(
       ticketId,
       body
     );
+
+    // CHECKIN-09A: the replaced ticket keeps its document history, but
+    // those PDFs are no longer admissible and must not enter an export
+    // batch. The new ticket gets its own PDF when an administrator
+    // generates one. This never alters the replacement result, the ticket
+    // rows or any attendance record.
+    if (result.ok) {
+      await invalidateDocumentsForTicket(
+        guard.session.userId,
+        ticketId,
+        "replaced"
+      );
+    }
+
     return ticketServiceResponse(result);
   } catch {
     return ticketInternalErrorResponse();
