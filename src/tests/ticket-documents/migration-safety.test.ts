@@ -47,14 +47,24 @@ beforeAll(() => {
 });
 
 describe("branded ticket document migration safety", () => {
-  it("is timestamped after every previously deployed migration", () => {
-    const others = readdirSync(migrationsDir)
-      .filter((file) => file !== fileName && file.endsWith(".sql"))
-      .map((file) => file.slice(0, 14));
+  it("is timestamped after every migration that predates it", () => {
+    // Migrations added later (e.g. CHECKIN-09B) legitimately sort after this
+    // one, so only assert ordering against migrations that predate it.
     const mine = fileName.slice(0, 14);
-    for (const other of others) {
+    const priorTimestamps = readdirSync(migrationsDir)
+      .filter((file) => file !== fileName && file.endsWith(".sql"))
+      .map((file) => file.slice(0, 14))
+      .filter((timestamp) => timestamp < mine);
+    expect(priorTimestamps.length).toBeGreaterThan(0);
+    for (const other of priorTimestamps) {
       expect(mine > other, `${mine} must sort after ${other}`).toBe(true);
     }
+    // No other migration shares this timestamp.
+    const collisions = readdirSync(migrationsDir)
+      .filter((file) => file !== fileName && file.endsWith(".sql"))
+      .map((file) => file.slice(0, 14))
+      .filter((timestamp) => timestamp === mine);
+    expect(collisions).toEqual([]);
   });
 
   it("keeps every previously deployed migration in place", () => {
@@ -132,7 +142,10 @@ describe("branded ticket document migration safety", () => {
       "graduation_ticket_documents_one_current_per_ticket"
     );
     expect(migration).toContain("where status = 'current'");
-    expect(migration).toContain("unique (\n    ticket_id, document_version\n  )");
+    // Line-ending agnostic: the working copy may be checked out with CRLF.
+    expect(migration.replace(/\r\n/g, "\n")).toContain(
+      "unique (\n    ticket_id, document_version\n  )"
+    );
   });
 
   it("enforces a unique storage path so a PDF is never overwritten", () => {
