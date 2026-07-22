@@ -876,6 +876,39 @@ export type GraduationTicketDeliveryResultImportInsert = {
 export type GraduationTicketDeliveryResultImportUpdate =
   Partial<GraduationTicketDeliveryResultImportInsert>;
 
+export type GraduationTicketDeliveryResultImportLineRow = {
+  id: string;
+  result_import_id: string;
+  delivery_batch_id: string;
+  row_number: number;
+  delivery_reference: string;
+  attempt_reference: string;
+  disposition: string;
+  mode: string | null;
+  outcome: string | null;
+  reason_code: string | null;
+  message: string;
+  created_at: string;
+}
+
+export type GraduationTicketDeliveryResultImportLineInsert = {
+  id?: string;
+  result_import_id: string;
+  delivery_batch_id: string;
+  row_number: number;
+  delivery_reference: string;
+  attempt_reference: string;
+  disposition: string;
+  mode?: string | null;
+  outcome?: string | null;
+  reason_code?: string | null;
+  message?: string;
+  created_at?: string;
+}
+
+export type GraduationTicketDeliveryResultImportLineUpdate =
+  Partial<GraduationTicketDeliveryResultImportLineInsert>;
+
 export type GraduationEventTicketSettingsRow = {
   id: string;
   event_id: string;
@@ -1169,6 +1202,12 @@ export type Database = {
         Row: GraduationTicketDeliveryResultImportRow;
         Insert: GraduationTicketDeliveryResultImportInsert;
         Update: GraduationTicketDeliveryResultImportUpdate;
+        Relationships: [];
+      };
+      graduation_ticket_delivery_result_import_rows: {
+        Row: GraduationTicketDeliveryResultImportLineRow;
+        Insert: GraduationTicketDeliveryResultImportLineInsert;
+        Update: GraduationTicketDeliveryResultImportLineUpdate;
         Relationships: [];
       };
     };

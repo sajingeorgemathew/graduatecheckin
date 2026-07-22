@@ -29,6 +29,8 @@ const ROUTES = [
 const PAGES = [
   "app/admin/tickets/distribution/page.tsx",
   "app/admin/tickets/distribution/import-results/page.tsx",
+  "app/admin/tickets/distribution/[batchCode]/page.tsx",
+  "app/admin/tickets/distribution/import/[importId]/page.tsx",
 ];
 
 describe("distribution route safety", () => {

@@ -77,6 +77,24 @@ function sha256Hex_(bytes) {
   return out;
 }
 
+/**
+ * Pure guard: a row may only be sent when it belongs to the active batch and
+ * active mode. Empty active values (an unloaded sheet) match nothing is
+ * enforced by the caller; here an empty expectation is treated as "no active
+ * batch" and the row is refused so a send can never run without an active
+ * batch identity.
+ */
+function rowMatchesActiveBatch_(row, activeBatchCode, activeMode) {
+  var wantBatch = String(activeBatchCode === undefined ? '' : activeBatchCode).trim();
+  var wantMode = String(activeMode === undefined ? '' : activeMode).trim().toLowerCase();
+  if (wantBatch === '' || wantMode === '') {
+    return false;
+  }
+  var code = String(row.delivery_batch_code === undefined ? '' : row.delivery_batch_code).trim();
+  var mode = String(row.delivery_mode === undefined ? '' : row.delivery_mode).trim().toLowerCase();
+  return code === wantBatch && mode === wantMode;
+}
+
 /** Core row loop shared by Send Selected, Send Next 25 and Resume Failed. */
 function sendRows_(rowNumbers, options) {
   var lock = LockService.getScriptLock();
@@ -95,6 +113,27 @@ function sendRows_(rowNumbers, options) {
     }
     var sender = assertSenderAllowed_(config, isProduction);
 
+    // Active-batch identity is populated from the loaded signed queue. Every
+    // send uses only these values, so a run can only ever touch one batch.
+    var summary = SpreadsheetApp.getActive().getSheetByName(TAB.SUMMARY);
+    var activeBatchCode = String(getSummary_(summary, ACTIVE_BATCH_FIELDS.CODE)).trim();
+    var activeMode = String(getSummary_(summary, ACTIVE_BATCH_FIELDS.MODE)).trim().toLowerCase();
+    if (activeBatchCode === '' || activeMode === '') {
+      SpreadsheetApp.getUi().alert(
+        'No active batch is loaded. Load a signed send queue before sending.'
+      );
+      return;
+    }
+    var runMode = testMode ? 'test' : 'production';
+    if (activeMode !== runMode) {
+      SpreadsheetApp.getUi().alert(
+        'Active batch mode (' + activeMode + ') does not match TEST_MODE. Set ' +
+        'TEST_MODE to ' + (activeMode === 'test' ? 'TRUE' : 'FALSE') +
+        ' to match the active batch before sending.'
+      );
+      return;
+    }
+
     var sheet = SpreadsheetApp.getActive().getSheetByName(TAB.QUEUE);
     var queue = readQueue_();
     var rowsByNumber = {};
@@ -112,6 +151,10 @@ function sendRows_(rowNumbers, options) {
       }
       var row = rowsByNumber[rowNumbers[i]];
       if (!row) {
+        continue;
+      }
+      // Reject any row that is not the active batch and mode.
+      if (!rowMatchesActiveBatch_(row, activeBatchCode, activeMode)) {
         continue;
       }
       var status = String(row.status).toUpperCase();
@@ -169,7 +212,10 @@ function sendOneRow_(config, row, testMode, sender) {
     pdf_sha256: row.pdf_sha256,
     error_code: '',
     error_message: '',
-    bounce_detected_at: ''
+    bounce_detected_at: '',
+    // The true batch this attempt belongs to. Recording it per row is what
+    // lets the result export be scoped strictly to the active batch.
+    delivery_batch_code: row.delivery_batch_code
   };
 
   try {
@@ -246,6 +292,8 @@ function columnFor_(sheet, name) {
 
 function appendLog_(record) {
   var sheet = SpreadsheetApp.getActive().getSheetByName(TAB.LOG);
+  // Append-only. Columns follow LOG_HEADERS; export tracking columns start
+  // blank and are filled only when a created Drive export includes the row.
   sheet.appendRow([
     record.attempt_reference,
     record.delivery_reference,
@@ -261,7 +309,12 @@ function appendLog_(record) {
     record.pdf_sha256,
     record.error_code,
     record.error_message,
-    record.bounce_detected_at
+    record.bounce_detected_at,
+    record.delivery_batch_code,
+    '', // export_status
+    '', // exported_at
+    '', // export_file_name
+    ''  // export_run_reference
   ]);
 }
 

@@ -13,20 +13,52 @@ import {
 } from "@/features/distribution/references";
 
 describe("delivery summaries", () => {
-  it("tallies statuses and modes", () => {
+  it("counts test and production independently", () => {
     const counts = summarizeDeliveries([
-      { status: "prepared", mode: "test" },
-      { status: "sent", mode: "production" },
-      { status: "sent", mode: "production" },
+      // A test batch delivery whose test send succeeded. Its delivery status
+      // stays prepared because a test never advances production status.
+      { status: "prepared", mode: "test", latestTestOutcome: "sent" },
+      // A production delivery that has been sent.
+      { status: "sent", mode: "production", latestProductionOutcome: "sent" },
+      { status: "sent", mode: "production", latestProductionOutcome: "sent" },
       { status: "bounce_detected", mode: "production" },
-      { status: "cancelled", mode: "test" },
+      { status: "cancelled", mode: "test", latestTestOutcome: "failed" },
     ]);
-    expect(counts.prepared).toBe(1);
-    expect(counts.sent).toBe(2);
-    expect(counts.bounceDetected).toBe(1);
+
+    expect(counts.totalDeliveries).toBe(5);
+    expect(counts.testSent).toBe(1);
+    expect(counts.testFailed).toBe(1);
+    expect(counts.productionSent).toBe(2);
+    expect(counts.productionFailed).toBe(0);
+    expect(counts.bounced).toBe(1);
     expect(counts.cancelled).toBe(1);
     expect(counts.testDeliveries).toBe(2);
     expect(counts.productionDeliveries).toBe(3);
+  });
+
+  it("never lets a test send increment a production count", () => {
+    const counts = summarizeDeliveries([
+      { status: "prepared", mode: "test", latestTestOutcome: "sent" },
+      { status: "prepared", mode: "test", latestTestOutcome: "sent" },
+    ]);
+    expect(counts.testSent).toBe(2);
+    expect(counts.productionSent).toBe(0);
+    expect(counts.prepared).toBe(2);
+  });
+
+  it("counts a resent production delivery as production sent", () => {
+    const counts = summarizeDeliveries([
+      { status: "resent", mode: "production", latestProductionOutcome: "sent" },
+    ]);
+    expect(counts.productionSent).toBe(1);
+    expect(counts.productionFailed).toBe(0);
+  });
+
+  it("returns all-zero counts for no deliveries", () => {
+    const counts = summarizeDeliveries([]);
+    expect(counts.totalDeliveries).toBe(0);
+    expect(counts.testSent).toBe(0);
+    expect(counts.productionSent).toBe(0);
   });
 });
 

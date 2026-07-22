@@ -319,13 +319,137 @@ function parseSendQueue_(text) {
 }
 
 /**
- * Shared writer for both load paths. Parses the CSV, and on success replaces
+ * Pure active-batch isolation check. A loadable queue must describe exactly one
+ * batch: one delivery_batch_code, one event_code and one delivery_mode across
+ * every row. A file that mixes two batches is rejected here, before anything
+ * touches the Sheet, so two queues can never be combined into one send list.
+ * Returns { ok, error, batchCode, eventCode, mode }.
+ */
+function evaluateQueueIsolation_(parsedRows) {
+  var result = { ok: false, error: '', batchCode: '', eventCode: '', mode: '' };
+  if (!parsedRows || parsedRows.length === 0) {
+    result.error = 'The queue contained no rows.';
+    return result;
+  }
+  var batchIdx = SEND_QUEUE_HEADERS.indexOf('delivery_batch_code');
+  var eventIdx = SEND_QUEUE_HEADERS.indexOf('event_code');
+  var modeIdx = SEND_QUEUE_HEADERS.indexOf('delivery_mode');
+
+  var batchCodes = {};
+  var eventCodes = {};
+  var modes = {};
+  for (var i = 0; i < parsedRows.length; i++) {
+    var v = parsedRows[i].values;
+    batchCodes[String(v[batchIdx] === undefined ? '' : v[batchIdx]).trim()] = true;
+    eventCodes[String(v[eventIdx] === undefined ? '' : v[eventIdx]).trim()] = true;
+    modes[String(v[modeIdx] === undefined ? '' : v[modeIdx]).trim().toLowerCase()] = true;
+  }
+  var batchKeys = Object.keys(batchCodes);
+  var eventKeys = Object.keys(eventCodes);
+  var modeKeys = Object.keys(modes);
+
+  if (batchKeys.length !== 1) {
+    result.error =
+      'The queue mixes ' + batchKeys.length + ' delivery batch codes (' +
+      batchKeys.join(', ') + '). A queue must contain exactly one batch. Export ' +
+      'a fresh single-batch send queue from the application.';
+    return result;
+  }
+  if (eventKeys.length !== 1) {
+    result.error =
+      'The queue mixes ' + eventKeys.length + ' event codes (' +
+      eventKeys.join(', ') + '). A queue must contain exactly one event.';
+    return result;
+  }
+  if (modeKeys.length !== 1) {
+    result.error =
+      'The queue mixes ' + modeKeys.length + ' delivery modes (' +
+      modeKeys.join(', ') + '). A queue must contain exactly one mode.';
+    return result;
+  }
+  result.ok = true;
+  result.batchCode = batchKeys[0];
+  result.eventCode = eventKeys[0];
+  result.mode = modeKeys[0];
+  return result;
+}
+
+/**
+ * Pure decision for whether an incoming queue may replace the active one.
+ * Replacing an active batch that still has unsent rows requires an explicit
+ * archive-and-replace; reloading the same batch, or loading when nothing is
+ * active or nothing is unsent, is always allowed. Returns
+ * { allowed, requiresArchive, message }.
+ */
+function queueReplacementDecision_(activeBatchCode, hasUnsentRows, incomingBatchCode, forceReplace) {
+  var active = String(activeBatchCode === undefined ? '' : activeBatchCode).trim();
+  var incoming = String(incomingBatchCode === undefined ? '' : incomingBatchCode).trim();
+  if (active === '') {
+    return { allowed: true, requiresArchive: false, message: '' };
+  }
+  if (active === incoming) {
+    return { allowed: true, requiresArchive: false, message: '' };
+  }
+  if (!hasUnsentRows) {
+    return { allowed: true, requiresArchive: false, message: '' };
+  }
+  if (forceReplace === true) {
+    return { allowed: true, requiresArchive: false, message: '' };
+  }
+  return {
+    allowed: false,
+    requiresArchive: true,
+    message:
+      'Active batch ' + active + ' is still loaded with unsent rows. Sending a ' +
+      'different batch would replace it. Use "Archive and Load New Batch from ' +
+      'Drive" to archive ' + active + ' first, then load ' + incoming + '.'
+  };
+}
+
+/** True when the Send Queue still holds rows that have not reached a terminal state. */
+function queueHasUnsentRows_() {
+  var sheet = SpreadsheetApp.getActive().getSheetByName(TAB.QUEUE);
+  if (!sheet || sheet.getLastRow() < 2) {
+    return false;
+  }
+  var queue = readQueue_();
+  for (var i = 0; i < queue.rows.length; i++) {
+    var status = String(queue.rows[i].status).toUpperCase();
+    if (status === 'READY' || status === 'FAILED' || status === 'SENDING') {
+      return true;
+    }
+  }
+  return false;
+}
+
+/** Records the currently active batch in the Batch Archive tab before replacement. */
+function archiveActiveQueue_(activeBatchCode) {
+  var ss = SpreadsheetApp.getActive();
+  var archive = ss.getSheetByName(TAB.ARCHIVE);
+  if (!archive) {
+    return;
+  }
+  var summary = ss.getSheetByName(TAB.SUMMARY);
+  var queue = readQueue_();
+  archive.appendRow([
+    new Date().toISOString(),
+    activeBatchCode,
+    getSummary_(summary, ACTIVE_BATCH_FIELDS.EVENT),
+    getSummary_(summary, ACTIVE_BATCH_FIELDS.MODE),
+    queue.rows.length,
+    'Archived on replacement by a new batch load.'
+  ]);
+}
+
+/**
+ * Shared writer for both load paths. Parses the CSV, enforces active-batch
+ * isolation, guards a replacement of an active queue, and on success replaces
  * the Send Queue tab with the validated rows, mapping each app status to its
  * operational Sheet status and preserving attempt_count. Returns a result with
  * a human-readable message; it never sends email and never calls the UI so the
  * caller decides how to present the outcome.
  */
-function applySendQueueCsv_(csvText, sourceLabel) {
+function applySendQueueCsv_(csvText, sourceLabel, forceReplace) {
   var parsed = parseSendQueue_(csvText);
   if (!parsed.ok) {
     return {
@@ -335,6 +459,44 @@ function applySendQueueCsv_(csvText, sourceLabel) {
       skipped: parsed.skipped,
       rejected: parsed.rejected
     };
+  }
+
+  var isolation = evaluateQueueIsolation_(parsed.rows);
+  if (!isolation.ok) {
+    return {
+      ok: false,
+      message: 'Load rejected (' + sourceLabel + ').\n\n' + isolation.error,
+      loaded: 0,
+      skipped: parsed.skipped,
+      rejected: parsed.rejected
+    };
+  }
+
+  var summaryTab = SpreadsheetApp.getActive().getSheetByName(TAB.SUMMARY);
+  var activeBatchCode = summaryTab
+    ? String(getSummary_(summaryTab, ACTIVE_BATCH_FIELDS.CODE)).trim()
+    : '';
+  var decision = queueReplacementDecision_(
+    activeBatchCode,
+    queueHasUnsentRows_(),
+    isolation.batchCode,
+    forceReplace === true
+  );
+  if (!decision.allowed) {
+    return {
+      ok: false,
+      message: 'Load blocked (' + sourceLabel + ').\n\n' + decision.message,
+      loaded: 0,
+      skipped: 0,
+      rejected: 0
+    };
+  }
+  if (
+    forceReplace === true &&
+    activeBatchCode !== '' &&
+    activeBatchCode !== isolation.batchCode
+  ) {
+    archiveActiveQueue_(activeBatchCode);
   }
 
   var sheet = SpreadsheetApp.getActive().getSheetByName(TAB.QUEUE);
@@ -390,7 +552,7 @@ function loadSendQueueCsv() {
  * so google.script.run can reach it. Returns the summary message string.
  */
 function applyPastedSendQueue(csvText) {
-  var result = applySendQueueCsv_(csvText, 'Pasted CSV');
+  var result = applySendQueueCsv_(csvText, 'Pasted CSV', false);
   return result.message;
 }
 
@@ -400,6 +562,30 @@ function applyPastedSendQueue(csvText) {
  * selected filename. Uses the same parser as the paste path.
  */
 function loadSendQueueCsvFromDrive() {
+  loadSendQueueFromDrive_(false);
+}
+
+/**
+ * Menu action: archives the active batch (if any) and loads a different batch
+ * from Drive. This is the explicit archive-and-replace the loader requires
+ * before it will replace an active queue that still has unsent rows.
+ */
+function archiveAndLoadNewBatchFromDrive() {
+  var ui = SpreadsheetApp.getUi();
+  var confirm = ui.alert(
+    'Archive and Load New Batch',
+    'This archives the currently active batch and replaces the Send Queue with ' +
+    'a new batch from Drive. The archived batch can no longer be sent from this ' +
+    'sheet. Continue?',
+    ui.ButtonSet.OK_CANCEL
+  );
+  if (confirm !== ui.Button.OK) {
+    return;
+  }
+  loadSendQueueFromDrive_(true);
+}
+
+function loadSendQueueFromDrive_(forceReplace) {
   var ui = SpreadsheetApp.getUi();
   var config = readConfig_();
   var folderId = String(config.DRIVE_BATCH_FOLDER_ID || '').trim();
@@ -432,7 +618,7 @@ function loadSendQueueCsvFromDrive() {
 
   var file = matches[0];
   var csvText = file.getBlob().getDataAsString('UTF-8');
-  var result = applySendQueueCsv_(csvText, file.getName());
+  var result = applySendQueueCsv_(csvText, file.getName(), forceReplace === true);
   ui.alert(result.message);
 }
 
@@ -493,11 +679,18 @@ function updateSummaryFromQueue_() {
     return;
   }
   var first = queue.rows[0];
+  var loadedAt = new Date().toISOString();
   setSummary_(summary, 'delivery_batch_code', first.delivery_batch_code);
   setSummary_(summary, 'event_code', first.event_code);
   setSummary_(summary, 'delivery_mode', first.delivery_mode);
   setSummary_(summary, 'prepared_count', queue.rows.length);
-  setSummary_(summary, 'loaded_at', new Date().toISOString());
+  setSummary_(summary, 'loaded_at', loadedAt);
+  // Protected active-batch identity, populated from the loaded queue (never
+  // typed by hand). Every send and export reads these.
+  setSummary_(summary, ACTIVE_BATCH_FIELDS.CODE, first.delivery_batch_code);
+  setSummary_(summary, ACTIVE_BATCH_FIELDS.MODE, String(first.delivery_mode).toLowerCase());
+  setSummary_(summary, ACTIVE_BATCH_FIELDS.EVENT, first.event_code);
+  setSummary_(summary, ACTIVE_BATCH_FIELDS.LOADED_AT, loadedAt);
 }
 
 function setSummary_(sheet, field, value) {

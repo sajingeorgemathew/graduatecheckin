@@ -5,15 +5,30 @@ import { DistributionWorkspace } from "@/features/distribution/components/distri
 import { loadDistributionAdminData } from "@/features/distribution/read-service";
 
 /**
- * Ticket distribution administration. Administrator only: the page guard
- * rejects scanners and supervisors before any data is read. Opening this
- * page never sends email and never prepares anything.
+ * Distribution Control Centre. Administrator only: the page guard rejects
+ * scanners and supervisors before any data is read. Opening this page never
+ * sends email and never prepares anything. Test and production counts are
+ * shown separately and never merged.
  */
 export const dynamic = "force-dynamic";
 
-function SummaryCard({ label, value }: { label: string; value: number }) {
+function SummaryCard({
+  label,
+  value,
+  tone = "neutral",
+}: {
+  label: string;
+  value: number;
+  tone?: "neutral" | "test" | "production";
+}) {
+  const accent =
+    tone === "test"
+      ? "border-sky-300"
+      : tone === "production"
+        ? "border-emerald-300"
+        : "border-navy/10";
   return (
-    <div className="rounded-lg border border-navy/10 bg-white p-4 shadow-sm">
+    <div className={`rounded-lg border ${accent} bg-white p-4 shadow-sm`}>
       <p className="text-2xl font-bold text-navy">{value}</p>
       <p className="mt-1 text-xs font-semibold uppercase tracking-wide text-navy/60">
         {label}
@@ -30,11 +45,23 @@ export default async function TicketDistributionPage() {
     <main className="mx-auto w-full max-w-6xl flex-1 px-6 py-8 sm:px-10">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-navy">Ticket Distribution</h1>
+          <h1 className="text-2xl font-bold text-navy">
+            Distribution Control Centre
+          </h1>
           {result.ok && (
-            <p className="mt-1 text-sm text-navy/70">
-              {result.data.eventName} ({result.data.eventCode})
-              {result.data.eventIsTest ? " — test event" : ""}
+            <p className="mt-1 flex items-center gap-2 text-sm text-navy/70">
+              <span>
+                {result.data.eventName} ({result.data.eventCode})
+              </span>
+              <span
+                className={`rounded px-2 py-0.5 text-xs font-bold uppercase tracking-wide ${
+                  result.data.eventIsTest
+                    ? "bg-sky-100 text-sky-800"
+                    : "bg-emerald-100 text-emerald-800"
+                }`}
+              >
+                {result.data.eventIsTest ? "Test event" : "Production event"}
+              </span>
             </p>
           )}
         </div>
@@ -55,9 +82,10 @@ export default async function TicketDistributionPage() {
       </div>
 
       <p className="mt-3 rounded-md border border-navy/10 bg-white p-3 text-sm text-navy/75">
-        CHECKIN-09B prepares and records ticket deliveries. Sending is performed
-        by a Google Apps Script bound to a Google Sheet; this application never
-        sends email and never connects to Gmail.
+        This application prepares and records ticket deliveries. Sending is
+        performed by a Google Apps Script bound to a Google Sheet; this
+        application never sends email and never connects to Gmail. A send success
+        means the message was accepted, not that it reached an inbox.
       </p>
 
       {!result.ok ? (
@@ -67,36 +95,47 @@ export default async function TicketDistributionPage() {
       ) : (
         <>
           <div className="mt-6 grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-5">
-            <SummaryCard label="Prepared" value={result.data.counts.prepared} />
-            <SummaryCard label="Sent" value={result.data.counts.sent} />
-            <SummaryCard label="Failed" value={result.data.counts.failed} />
             <SummaryCard
-              label="Bounce detected"
-              value={result.data.counts.bounceDetected}
+              label="Total deliveries"
+              value={result.data.counts.totalDeliveries}
             />
+            <SummaryCard label="Prepared" value={result.data.counts.prepared} />
+            <SummaryCard
+              label="Test sent"
+              value={result.data.counts.testSent}
+              tone="test"
+            />
+            <SummaryCard
+              label="Test failed"
+              value={result.data.counts.testFailed}
+              tone="test"
+            />
+            <SummaryCard
+              label="Production sent"
+              value={result.data.counts.productionSent}
+              tone="production"
+            />
+            <SummaryCard
+              label="Production failed"
+              value={result.data.counts.productionFailed}
+              tone="production"
+            />
+            <SummaryCard label="Bounced" value={result.data.counts.bounced} />
             <SummaryCard
               label="Resend required"
               value={result.data.counts.resendRequired}
             />
-            <SummaryCard label="Resent" value={result.data.counts.resent} />
             <SummaryCard label="Cancelled" value={result.data.counts.cancelled} />
             <SummaryCard
               label="Suppressed"
               value={result.data.counts.suppressed}
             />
-            <SummaryCard
-              label="Test deliveries"
-              value={result.data.counts.testDeliveries}
-            />
-            <SummaryCard
-              label="Production deliveries"
-              value={result.data.counts.productionDeliveries}
-            />
           </div>
 
           <DistributionWorkspace
             sourceBatches={result.data.sourceDocumentBatches}
-            deliveryBatches={result.data.deliveryBatches}
+            batches={result.data.batches}
+            resultImports={result.data.resultImports}
             distributionConfigured={result.data.distributionConfigured}
           />
         </>

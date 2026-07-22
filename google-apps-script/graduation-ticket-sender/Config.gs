@@ -16,7 +16,57 @@ var TAB = {
   SUMMARY: 'Batch Summary',
   QUEUE: 'Send Queue',
   LOG: 'Send Log',
-  BOUNCE: 'Bounce Review'
+  BOUNCE: 'Bounce Review',
+  ARCHIVE: 'Batch Archive'
+};
+
+/**
+ * The Send Log columns, header-mapped everywhere they are read or written.
+ * CHECKIN-09C appends five columns after bounce_detected_at:
+ *   delivery_batch_code  the true batch each attempt belongs to. Recording it
+ *                        per row is what lets a result export be scoped to the
+ *                        active batch instead of stamping the summary batch
+ *                        code onto every leftover row.
+ *   export_status        'exported' once the row is in a created Drive file.
+ *   exported_at          when it was exported.
+ *   export_file_name     the file it was exported in.
+ *   export_run_reference the export run that included it.
+ * The first fifteen columns keep their historical positions so Bounce Review,
+ * which reads them by index, is unaffected.
+ */
+var LOG_HEADERS = [
+  'attempt_reference',
+  'delivery_reference',
+  'row_signature',
+  'attempt_number',
+  'intended_recipient_email',
+  'actual_recipient_email',
+  'delivery_mode',
+  'outcome',
+  'attempted_at',
+  'sent_by',
+  'pdf_file_name',
+  'pdf_sha256',
+  'error_code',
+  'error_message',
+  'bounce_detected_at',
+  'delivery_batch_code',
+  'export_status',
+  'exported_at',
+  'export_file_name',
+  'export_run_reference'
+];
+
+/**
+ * Protected active-batch identity fields, populated from the loaded signed
+ * queue (never typed by hand). Every send and every export reads these so a
+ * run can only ever touch the one batch that is currently loaded.
+ */
+var ACTIVE_BATCH_FIELDS = {
+  CODE: 'ACTIVE_BATCH_CODE',
+  MODE: 'ACTIVE_BATCH_MODE',
+  EVENT: 'ACTIVE_EVENT_CODE',
+  LOADED_AT: 'ACTIVE_QUEUE_LOADED_AT'
 };
 
 var CONFIG_KEYS = [

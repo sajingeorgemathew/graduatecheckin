@@ -16,6 +16,7 @@ function onOpen() {
     .addItem('Setup Workbook', 'setupWorkbook')
     .addItem('Load Send Queue CSV', 'loadSendQueueCsv')
     .addItem('Load Send Queue CSV from Drive', 'loadSendQueueCsvFromDrive')
+    .addItem('Archive and Load New Batch from Drive', 'archiveAndLoadNewBatchFromDrive')
     .addSeparator()
     .addItem('Validate Batch', 'validateBatch')
     .addItem('Send Test for Selected Row', 'sendTestForSelectedRow')
@@ -24,7 +25,8 @@ function onOpen() {
     .addItem('Resume Failed', 'resumeFailed')
     .addSeparator()
     .addItem('Scan Bounce Messages', 'scanBounceMessages')
-    .addItem('Export Results CSV', 'exportResultsCsv')
+    .addItem('Export New Results for Active Batch', 'exportNewResultsForActiveBatch')
+    .addItem('Re-export All Results for Active Batch', 'reExportAllResultsForActiveBatch')
     .addItem('Show Remaining Email Quota', 'showRemainingQuota')
     .addToUi();
 }
@@ -37,6 +39,7 @@ function setupWorkbook() {
   ensureQueueTab_(ss);
   ensureLogTab_(ss);
   ensureBounceTab_(ss);
+  ensureArchiveTab_(ss);
   SpreadsheetApp.getUi().alert(
     'Workbook ready. Fill in the Configuration tab, then Load Send Queue CSV.'
   );
@@ -75,6 +78,24 @@ function ensureSummaryTab_(ss) {
     sheet.appendRow(['prepared_count', '']);
     sheet.appendRow(['loaded_at', '']);
   }
+  // Additively ensure the protected active-batch identity fields exist. These
+  // are populated from the loaded signed queue, never typed by hand.
+  var existing = {};
+  var values = sheet.getDataRange().getValues();
+  for (var i = 0; i < values.length; i++) {
+    existing[String(values[i][0]).trim()] = true;
+  }
+  var activeFields = [
+    ACTIVE_BATCH_FIELDS.CODE,
+    ACTIVE_BATCH_FIELDS.MODE,
+    ACTIVE_BATCH_FIELDS.EVENT,
+    ACTIVE_BATCH_FIELDS.LOADED_AT
+  ];
+  for (var a = 0; a < activeFields.length; a++) {
+    if (!existing[activeFields[a]]) {
+      sheet.appendRow([activeFields[a], '']);
+    }
+  }
 }
 
 function ensureQueueTab_(ss) {
@@ -91,22 +112,41 @@ function ensureLogTab_(ss) {
   var sheet = ss.getSheetByName(TAB.LOG);
   if (!sheet) {
     sheet = ss.insertSheet(TAB.LOG);
+    sheet.appendRow(LOG_HEADERS);
+    return;
+  }
+  // Additively add any missing header columns to an existing Send Log so an
+  // upgraded workbook keeps its history and gains export tracking. Existing
+  // columns keep their positions; new columns are appended to the right.
+  var header = sheet.getRange(1, 1, 1, Math.max(sheet.getLastColumn(), 1)).getValues()[0];
+  var present = {};
+  for (var c = 0; c < header.length; c++) {
+    present[String(header[c]).trim()] = true;
+  }
+  var toAdd = [];
+  for (var h = 0; h < LOG_HEADERS.length; h++) {
+    if (!present[LOG_HEADERS[h]]) {
+      toAdd.push(LOG_HEADERS[h]);
+    }
+  }
+  if (toAdd.length > 0) {
+    sheet
+      .getRange(1, header.length + 1, 1, toAdd.length)
+      .setValues([toAdd]);
+  }
+}
+
+function ensureArchiveTab_(ss) {
+  var sheet = ss.getSheetByName(TAB.ARCHIVE);
+  if (!sheet) {
+    sheet = ss.insertSheet(TAB.ARCHIVE);
     sheet.appendRow([
-      'attempt_reference',
-      'delivery_reference',
-      'row_signature',
-      'attempt_number',
-      'intended_recipient_email',
-      'actual_recipient_email',
+      'archived_at',
+      'delivery_batch_code',
+      'event_code',
       'delivery_mode',
-      'outcome',
-      'attempted_at',
-      'sent_by',
-      'pdf_file_name',
-      'pdf_sha256',
-      'error_code',
-      'error_message',
-      'bounce_detected_at'
+      'row_count',
+      'note'
     ]);
   }
 }

@@ -39,7 +39,6 @@ import {
 } from "./results";
 import { signDeliveryRow, type DeliverySignaturePayload } from "./signing";
 import { buildSendQueueCsv } from "./send-queue";
-import { summarizeDeliveries } from "./summaries";
 import type {
   DeliveryParty,
   ExcludedDelivery,
@@ -497,6 +496,23 @@ export async function applyResults(input: {
     imported_by: input.actorUserId,
   });
 
+  // Persist one audit line per evaluated source row so the import history can
+  // show every disposition, including rejected rows that remain unapplied.
+  await repo.insertResultImportLines(
+    preview.data.rows.map((row) => ({
+      result_import_id: resultImport.id,
+      delivery_batch_id: batch.id,
+      row_number: row.rowNumber,
+      delivery_reference: row.deliveryReference,
+      attempt_reference: row.attemptReference,
+      disposition: row.disposition,
+      mode: row.mode,
+      outcome: row.outcome,
+      reason_code: row.reasonCode,
+      message: row.message,
+    }))
+  );
+
   // Re-map delivery references to delivery ids for the attempt append.
   const deliveries = await repo.listDeliveries(batch.id);
   const idByReference = new Map(
@@ -566,50 +582,6 @@ export async function cancelDeliveryBatch(
     return fail(code, "The delivery batch could not be cancelled.");
   }
   return { ok: true, data: { cancelledCount: result.cancelled_count ?? 0 } };
-}
-
-export interface DistributionOverview {
-  counts: ReturnType<typeof summarizeDeliveries>;
-  batches: Array<{
-    id: string;
-    code: string;
-    mode: DeliveryMode;
-    purpose: DeliveryPurpose;
-    status: string;
-    preparedCount: number;
-    sentCount: number;
-    createdAt: string;
-  }>;
-}
-
-export async function getDistributionOverview(
-  eventId: string
-): Promise<DistributionOverview> {
-  const [deliveries, batches] = await Promise.all([
-    repo.listEventDeliveries(eventId),
-    repo.listDeliveryBatches(eventId),
-  ]);
-  const modeByBatch = new Map(
-    batches.map((batch) => [batch.id, batch.mode] as const)
-  );
-  return {
-    counts: summarizeDeliveries(
-      deliveries.map((row) => ({
-        status: row.status,
-        mode: modeByBatch.get(row.delivery_batch_id) ?? "production",
-      }))
-    ),
-    batches: batches.map((batch) => ({
-      id: batch.id,
-      code: batch.delivery_batch_code,
-      mode: batch.mode,
-      purpose: batch.purpose,
-      status: batch.status,
-      preparedCount: batch.prepared_count,
-      sentCount: batch.sent_count,
-      createdAt: batch.created_at,
-    })),
-  };
 }
 
 export type { Json };

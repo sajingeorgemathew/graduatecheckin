@@ -1,9 +1,14 @@
 "use client";
 
+import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 
 import type { DeliveryMode, DeliveryPurpose } from "../constants";
+import type {
+  BatchRowView,
+  ResultImportRowView,
+} from "../read-service";
 
 interface SourceBatch {
   id: string;
@@ -13,20 +18,10 @@ interface SourceBatch {
   createdAt: string;
 }
 
-interface DeliveryBatch {
-  id: string;
-  code: string;
-  mode: DeliveryMode;
-  purpose: DeliveryPurpose;
-  status: string;
-  preparedCount: number;
-  sentCount: number;
-  createdAt: string;
-}
-
 interface Props {
   sourceBatches: SourceBatch[];
-  deliveryBatches: DeliveryBatch[];
+  batches: BatchRowView[];
+  resultImports: ResultImportRowView[];
   distributionConfigured: boolean;
 }
 
@@ -37,9 +32,38 @@ const PURPOSES: DeliveryPurpose[] = [
   "resend",
 ];
 
+type TabKey = "all" | "test" | "production" | "imports";
+
+const TABS: Array<{ key: TabKey; label: string }> = [
+  { key: "all", label: "All batches" },
+  { key: "test", label: "Test batches" },
+  { key: "production", label: "Production batches" },
+  { key: "imports", label: "Result imports" },
+];
+
+function ModeBadge({ mode }: { mode: DeliveryMode }) {
+  const isTest = mode === "test";
+  return (
+    <span
+      className={`rounded px-2 py-0.5 text-xs font-bold uppercase tracking-wide ${
+        isTest ? "bg-sky-100 text-sky-800" : "bg-emerald-100 text-emerald-800"
+      }`}
+    >
+      {isTest ? "Test" : "Production"}
+    </span>
+  );
+}
+
+function formatTime(value: string | null): string {
+  if (!value) return "—";
+  const parsed = Date.parse(value);
+  return Number.isFinite(parsed) ? new Date(parsed).toLocaleString() : "—";
+}
+
 export function DistributionWorkspace({
   sourceBatches,
-  deliveryBatches,
+  batches,
+  resultImports,
   distributionConfigured,
 }: Props) {
   const router = useRouter();
@@ -51,6 +75,13 @@ export function DistributionWorkspace({
   const [override, setOverride] = useState(false);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
+  const [tab, setTab] = useState<TabKey>("all");
+
+  const visibleBatches = useMemo(() => {
+    if (tab === "test") return batches.filter((b) => b.mode === "test");
+    if (tab === "production") return batches.filter((b) => b.mode === "production");
+    return batches;
+  }, [batches, tab]);
 
   async function prepare() {
     setBusy(true);
@@ -114,7 +145,8 @@ export function DistributionWorkspace({
         <h2 className="text-lg font-bold text-navy">Prepare a delivery batch</h2>
         <p className="mt-1 text-sm text-navy/70">
           Select a completed PDF document batch. The app prepares and records
-          deliveries; it never sends email.
+          deliveries; it never sends email. A test batch is never converted into
+          a production batch.
         </p>
         {!distributionConfigured && (
           <p className="mt-3 rounded-md border border-gold bg-gold/10 p-3 text-sm text-navy">
@@ -147,9 +179,7 @@ export function DistributionWorkspace({
               <select
                 className="mt-1 w-full rounded-md border border-navy/20 p-2 text-sm"
                 value={mode}
-                onChange={(event) =>
-                  setMode(event.target.value as DeliveryMode)
-                }
+                onChange={(event) => setMode(event.target.value as DeliveryMode)}
               >
                 <option value="test">test</option>
                 <option value="production">production</option>
@@ -197,66 +227,187 @@ export function DistributionWorkspace({
       </section>
 
       <section>
-        <h2 className="text-lg font-bold text-navy">Delivery batches</h2>
-        {deliveryBatches.length === 0 ? (
-          <p className="mt-2 text-sm text-navy/70">
-            No delivery batches have been prepared yet.
-          </p>
+        <div className="flex flex-wrap gap-1 border-b border-navy/15">
+          {TABS.map((entry) => (
+            <button
+              key={entry.key}
+              type="button"
+              onClick={() => setTab(entry.key)}
+              className={`rounded-t-md px-4 py-2 text-sm font-semibold ${
+                tab === entry.key
+                  ? "border border-b-0 border-navy/15 bg-white text-navy"
+                  : "text-navy/60 hover:text-navy"
+              }`}
+            >
+              {entry.label}
+              {entry.key === "imports" ? ` (${resultImports.length})` : ""}
+            </button>
+          ))}
+        </div>
+
+        {tab === "imports" ? (
+          <ImportsTable imports={resultImports} />
         ) : (
-          <div className="mt-3 overflow-x-auto">
-            <table className="w-full min-w-[760px] border-collapse text-left text-sm">
-              <thead>
-                <tr className="border-b border-navy/15 text-xs uppercase tracking-wide text-navy/60">
-                  <th scope="col" className="px-3 py-2">Code</th>
-                  <th scope="col" className="px-3 py-2">Mode</th>
-                  <th scope="col" className="px-3 py-2">Purpose</th>
-                  <th scope="col" className="px-3 py-2">Status</th>
-                  <th scope="col" className="px-3 py-2">Prepared</th>
-                  <th scope="col" className="px-3 py-2">Sent</th>
-                  <th scope="col" className="px-3 py-2">Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {deliveryBatches.map((batch) => (
-                  <tr key={batch.id} className="border-b border-navy/10">
-                    <td className="px-3 py-2 font-mono text-xs text-navy">
-                      {batch.code}
-                    </td>
-                    <td className="px-3 py-2 text-navy/80">{batch.mode}</td>
-                    <td className="px-3 py-2 text-navy/80">{batch.purpose}</td>
-                    <td className="px-3 py-2 text-navy/80">{batch.status}</td>
-                    <td className="px-3 py-2 text-navy/80">
-                      {batch.preparedCount}
-                    </td>
-                    <td className="px-3 py-2 text-navy/80">{batch.sentCount}</td>
-                    <td className="px-3 py-2">
-                      <div className="flex gap-2">
-                        <a
-                          href={`/api/admin/tickets/distribution/batches/${batch.id}/send-queue`}
-                          className="rounded border border-navy/20 px-2 py-1 text-xs font-semibold text-navy"
-                        >
-                          Send queue CSV
-                        </a>
-                        {(batch.status === "draft" ||
-                          batch.status === "prepared") && (
-                          <button
-                            type="button"
-                            disabled={busy}
-                            onClick={() => cancel(batch.id)}
-                            className="rounded border border-navy/20 px-2 py-1 text-xs font-semibold text-navy disabled:opacity-50"
-                          >
-                            Cancel
-                          </button>
-                        )}
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+          <BatchesTable
+            batches={visibleBatches}
+            busy={busy}
+            onCancel={cancel}
+          />
         )}
       </section>
+    </div>
+  );
+}
+
+function BatchesTable({
+  batches,
+  busy,
+  onCancel,
+}: {
+  batches: BatchRowView[];
+  busy: boolean;
+  onCancel: (id: string) => void;
+}) {
+  if (batches.length === 0) {
+    return (
+      <p className="mt-3 text-sm text-navy/70">
+        No batches to show in this view.
+      </p>
+    );
+  }
+  return (
+    <div className="mt-3 overflow-x-auto">
+      <table className="w-full min-w-[980px] border-collapse text-left text-sm">
+        <thead>
+          <tr className="border-b border-navy/15 text-xs uppercase tracking-wide text-navy/60">
+            <th scope="col" className="px-3 py-2">Batch</th>
+            <th scope="col" className="px-3 py-2">Event</th>
+            <th scope="col" className="px-3 py-2">Mode</th>
+            <th scope="col" className="px-3 py-2">Purpose</th>
+            <th scope="col" className="px-3 py-2">Status</th>
+            <th scope="col" className="px-3 py-2">Prepared</th>
+            <th scope="col" className="px-3 py-2">Test sent</th>
+            <th scope="col" className="px-3 py-2">Prod. sent</th>
+            <th scope="col" className="px-3 py-2">Failed</th>
+            <th scope="col" className="px-3 py-2">Created</th>
+            <th scope="col" className="px-3 py-2">Last activity</th>
+            <th scope="col" className="px-3 py-2">Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          {batches.map((batch) => (
+            <tr key={batch.id} className="border-b border-navy/10 align-top">
+              <td className="px-3 py-2 font-mono text-xs text-navy">
+                {batch.code}
+              </td>
+              <td className="px-3 py-2 text-navy/80">{batch.eventCode}</td>
+              <td className="px-3 py-2">
+                <ModeBadge mode={batch.mode} />
+              </td>
+              <td className="px-3 py-2 text-navy/80">{batch.purpose}</td>
+              <td className="px-3 py-2 text-navy/80">{batch.status}</td>
+              <td className="px-3 py-2 text-navy/80">{batch.preparedCount}</td>
+              <td className="px-3 py-2 text-navy/80">{batch.testSentCount}</td>
+              <td className="px-3 py-2 text-navy/80">
+                {batch.productionSentCount}
+              </td>
+              <td className="px-3 py-2 text-navy/80">{batch.failedCount}</td>
+              <td className="px-3 py-2 text-xs text-navy/70">
+                {formatTime(batch.createdAt)}
+              </td>
+              <td className="px-3 py-2 text-xs text-navy/70">
+                {formatTime(batch.lastActivityAt)}
+              </td>
+              <td className="px-3 py-2">
+                <div className="flex flex-wrap gap-2">
+                  <Link
+                    href={`/admin/tickets/distribution/${batch.code}`}
+                    className="rounded border border-navy/20 px-2 py-1 text-xs font-semibold text-navy hover:border-navy/40"
+                  >
+                    View details
+                  </Link>
+                  <a
+                    href={`/api/admin/tickets/distribution/batches/${batch.id}/send-queue`}
+                    className="rounded border border-navy/20 px-2 py-1 text-xs font-semibold text-navy hover:border-navy/40"
+                  >
+                    Download queue
+                  </a>
+                  {(batch.status === "draft" ||
+                    batch.status === "prepared") && (
+                    <button
+                      type="button"
+                      disabled={busy}
+                      onClick={() => onCancel(batch.id)}
+                      className="rounded border border-navy/20 px-2 py-1 text-xs font-semibold text-navy disabled:opacity-50"
+                    >
+                      Cancel
+                    </button>
+                  )}
+                </div>
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+function ImportsTable({ imports }: { imports: ResultImportRowView[] }) {
+  if (imports.length === 0) {
+    return (
+      <p className="mt-3 text-sm text-navy/70">
+        No result files have been imported yet.
+      </p>
+    );
+  }
+  return (
+    <div className="mt-3 overflow-x-auto">
+      <table className="w-full min-w-[900px] border-collapse text-left text-sm">
+        <thead>
+          <tr className="border-b border-navy/15 text-xs uppercase tracking-wide text-navy/60">
+            <th scope="col" className="px-3 py-2">File</th>
+            <th scope="col" className="px-3 py-2">Batch</th>
+            <th scope="col" className="px-3 py-2">Status</th>
+            <th scope="col" className="px-3 py-2">Total</th>
+            <th scope="col" className="px-3 py-2">Accepted</th>
+            <th scope="col" className="px-3 py-2">Duplicate</th>
+            <th scope="col" className="px-3 py-2">Warning</th>
+            <th scope="col" className="px-3 py-2">Rejected</th>
+            <th scope="col" className="px-3 py-2">Imported by</th>
+            <th scope="col" className="px-3 py-2">Imported</th>
+            <th scope="col" className="px-3 py-2">Details</th>
+          </tr>
+        </thead>
+        <tbody>
+          {imports.map((row) => (
+            <tr key={row.id} className="border-b border-navy/10">
+              <td className="px-3 py-2 text-navy/80">{row.fileName}</td>
+              <td className="px-3 py-2 font-mono text-xs text-navy">
+                {row.batchCode}
+              </td>
+              <td className="px-3 py-2 text-navy/80">{row.status}</td>
+              <td className="px-3 py-2 text-navy/80">{row.totalRows}</td>
+              <td className="px-3 py-2 text-navy/80">{row.acceptedRows}</td>
+              <td className="px-3 py-2 text-navy/80">{row.duplicateRows}</td>
+              <td className="px-3 py-2 text-navy/80">{row.warningRows}</td>
+              <td className="px-3 py-2 text-navy/80">{row.rejectedRows}</td>
+              <td className="px-3 py-2 text-navy/80">{row.importedBy}</td>
+              <td className="px-3 py-2 text-xs text-navy/70">
+                {formatTime(row.importedAt)}
+              </td>
+              <td className="px-3 py-2">
+                <Link
+                  href={`/admin/tickets/distribution/import/${row.id}`}
+                  className="rounded border border-navy/20 px-2 py-1 text-xs font-semibold text-navy hover:border-navy/40"
+                >
+                  View details
+                </Link>
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
     </div>
   );
 }
