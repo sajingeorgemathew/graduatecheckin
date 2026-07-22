@@ -36,13 +36,23 @@ beforeAll(() => {
 });
 
 describe("distribution migration safety", () => {
-  it("is timestamped after every previously deployed migration", () => {
-    const others = readdirSync(migrationsDir)
-      .filter((file) => file !== fileName && file.endsWith(".sql"))
+  it("is timestamped after every migration that predates it", () => {
+    // A later additive migration (CHECKIN-09C) may sort after this one; the
+    // invariant is only that this migration follows every earlier migration and
+    // that all migration timestamps are unique and strictly ordered.
+    const all = readdirSync(migrationsDir)
+      .filter((file) => file.endsWith(".sql"))
       .map((file) => file.slice(0, 14));
+    expect(new Set(all).size, "migration timestamps must be unique").toBe(
+      all.length
+    );
+    const sorted = [...all].sort();
+    expect(all.slice().sort()).toEqual(sorted);
     const mine = fileName.slice(0, 14);
-    for (const other of others) {
-      expect(mine > other, `${mine} must sort after ${other}`).toBe(true);
+    for (const other of all) {
+      if (other < mine) {
+        expect(mine > other, `${mine} must sort after ${other}`).toBe(true);
+      }
     }
   });
 

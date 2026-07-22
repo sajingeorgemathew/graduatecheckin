@@ -19,6 +19,30 @@ graduate information is committed.
 5. The administrator imports that results file back into the app, which
    appends immutable attempt history and updates delivery status.
 
+## CHECKIN-09C update — recopy required
+
+CHECKIN-09C makes every send and every export strictly **active-batch scoped**,
+fixing a mixed-batch export. When upgrading an existing sheet you must recopy
+**all** `.gs` files online (Extensions → Apps Script), then run **Setup
+Workbook** once so the new tabs/columns are added:
+
+- `Code.gs`, `Config.gs`, `Validation.gs`, `Sending.gs`, `Results.gs`
+
+What changed:
+
+- The **Batch Summary** tab gains protected identity fields, populated from the
+  loaded queue (never typed): `ACTIVE_BATCH_CODE`, `ACTIVE_BATCH_MODE`,
+  `ACTIVE_EVENT_CODE`, `ACTIVE_QUEUE_LOADED_AT`.
+- The **Send Log** gains `delivery_batch_code` plus `export_status`,
+  `exported_at`, `export_file_name`, `export_run_reference`.
+- Loading a queue rejects any file that mixes batch codes, event codes or
+  modes, and refuses to replace an active queue with unsent rows unless you use
+  **Archive and Load New Batch from Drive**.
+- The old **Export Results CSV** action is replaced by **Export New Results for
+  Active Batch** (only new, unexported, terminal rows for the active batch) and
+  **Re-export All Results for Active Batch** (recovery; still active-batch
+  scoped). A zero-row export shows a message and writes no file.
+
 ## Install
 
 1. Create a Google Sheet owned by `office@torontoacademy.ca`.

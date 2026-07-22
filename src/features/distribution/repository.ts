@@ -16,6 +16,7 @@ import type {
   GraduationTicketDeliveryAttemptRow,
   GraduationTicketDeliveryBatchRow,
   GraduationTicketDeliveryResultImportRow,
+  GraduationTicketDeliveryResultImportLineRow,
   GraduationTicketDeliveryRow,
   GraduationTicketDocumentBatchItemRow,
   GraduationTicketDocumentBatchRow,
@@ -293,6 +294,20 @@ export async function listDeliveryBatches(
   return data ?? [];
 }
 
+export async function getDeliveryBatchByCode(
+  code: string
+): Promise<GraduationTicketDeliveryBatchRow | null> {
+  const { data, error } = await db()
+    .from("graduation_ticket_delivery_batches")
+    .select("*")
+    .eq("delivery_batch_code", code)
+    .maybeSingle();
+  if (error) {
+    throw operationError("load delivery batch by code");
+  }
+  return data;
+}
+
 export async function listDeliveries(
   batchId: string
 ): Promise<GraduationTicketDeliveryRow[]> {
@@ -333,6 +348,36 @@ export async function listDeliveryAttempts(
     throw operationError("list delivery attempts");
   }
   return data ?? [];
+}
+
+/** Attempts for a set of deliveries, keyed by delivery id (append-only history). */
+export async function listAttemptsByDeliveryIds(
+  deliveryIds: readonly string[]
+): Promise<Map<string, GraduationTicketDeliveryAttemptRow[]>> {
+  const result = new Map<string, GraduationTicketDeliveryAttemptRow[]>();
+  for (let offset = 0; offset < deliveryIds.length; offset += CHUNK) {
+    const slice = deliveryIds.slice(offset, offset + CHUNK);
+    if (slice.length === 0) {
+      break;
+    }
+    const { data, error } = await db()
+      .from("graduation_ticket_delivery_attempts")
+      .select("*")
+      .in("delivery_id", slice)
+      .order("attempt_number", { ascending: true });
+    if (error) {
+      throw operationError("list attempts by delivery");
+    }
+    for (const row of data ?? []) {
+      const bucket = result.get(row.delivery_id);
+      if (bucket === undefined) {
+        result.set(row.delivery_id, [row]);
+      } else {
+        bucket.push(row);
+      }
+    }
+  }
+  return result;
 }
 
 /** Every delivery status of the event, for dashboard counts. */
@@ -403,6 +448,79 @@ export async function updateResultImport(
   if (error) {
     throw operationError("update result import");
   }
+}
+
+export async function listResultImportsForEvent(
+  eventId: string
+): Promise<GraduationTicketDeliveryResultImportRow[]> {
+  const { data, error } = await db()
+    .from("graduation_ticket_delivery_result_imports")
+    .select("*")
+    .eq("event_id", eventId)
+    .order("created_at", { ascending: false });
+  if (error) {
+    throw operationError("list result imports for event");
+  }
+  return data ?? [];
+}
+
+export async function listResultImportsForBatch(
+  batchId: string
+): Promise<GraduationTicketDeliveryResultImportRow[]> {
+  const { data, error } = await db()
+    .from("graduation_ticket_delivery_result_imports")
+    .select("*")
+    .eq("delivery_batch_id", batchId)
+    .order("created_at", { ascending: false });
+  if (error) {
+    throw operationError("list result imports for batch");
+  }
+  return data ?? [];
+}
+
+export async function getResultImport(
+  importId: string
+): Promise<GraduationTicketDeliveryResultImportRow | null> {
+  const { data, error } = await db()
+    .from("graduation_ticket_delivery_result_imports")
+    .select("*")
+    .eq("id", importId)
+    .maybeSingle();
+  if (error) {
+    throw operationError("load result import");
+  }
+  return data;
+}
+
+export async function insertResultImportLines(
+  values: Database["public"]["Tables"]["graduation_ticket_delivery_result_import_rows"]["Insert"][]
+): Promise<void> {
+  if (values.length === 0) {
+    return;
+  }
+  for (let offset = 0; offset < values.length; offset += CHUNK) {
+    const slice = values.slice(offset, offset + CHUNK);
+    const { error } = await db()
+      .from("graduation_ticket_delivery_result_import_rows")
+      .insert(slice);
+    if (error) {
+      throw operationError("insert result import rows");
+    }
+  }
+}
+
+export async function listResultImportLines(
+  importId: string
+): Promise<GraduationTicketDeliveryResultImportLineRow[]> {
+  const { data, error } = await db()
+    .from("graduation_ticket_delivery_result_import_rows")
+    .select("*")
+    .eq("result_import_id", importId)
+    .order("row_number", { ascending: true });
+  if (error) {
+    throw operationError("list result import rows");
+  }
+  return data ?? [];
 }
 
 /** Attempt references already recorded for a batch, for idempotency. */

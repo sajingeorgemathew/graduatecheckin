@@ -38,13 +38,13 @@ export default async function ImportResultsPage() {
         <p className="mt-6 rounded-lg border border-gold bg-white p-6 text-sm text-navy">
           {result.message}
         </p>
-      ) : result.data.deliveryBatches.length === 0 ? (
+      ) : result.data.batches.length === 0 ? (
         <p className="mt-6 rounded-lg border border-navy/10 bg-white p-6 text-sm text-navy/70">
           No delivery batches exist yet. Prepare one before importing results.
         </p>
       ) : (
         <ImportResultsWorkspace
-          batches={result.data.deliveryBatches.map((batch) => ({
+          batches={result.data.batches.map((batch) => ({
             id: batch.id,
             code: batch.code,
             mode: batch.mode,
