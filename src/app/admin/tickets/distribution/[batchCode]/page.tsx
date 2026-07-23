@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 
 import { requireAdministratorPage } from "@/features/auth/guards";
+import { ArchivedAutomationBanner } from "@/features/distribution/components/archived-banner";
 import { BatchDetailWorkspace } from "@/features/distribution/components/batch-detail-workspace";
 import { loadBatchDetail } from "@/features/distribution/read-service";
 
@@ -29,6 +30,7 @@ export default async function BatchDetailPage({
 
   return (
     <main className="mx-auto w-full max-w-6xl flex-1 px-6 py-8 sm:px-10">
+      <ArchivedAutomationBanner />
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="font-mono text-2xl font-bold text-navy">

@@ -1081,6 +1081,339 @@ export type GraduationTicketDocumentBatchItemInsert = {
 export type GraduationTicketDocumentBatchItemUpdate =
   Partial<GraduationTicketDocumentBatchItemInsert>;
 
+// ---------------------------------------------------------------------
+// CHECKIN-10B: emergency manual production release.
+// ---------------------------------------------------------------------
+
+export type ProductionImportStatusEnum =
+  | "uploaded"
+  | "preview_ready"
+  | "applying"
+  | "applied"
+  | "cancelled"
+  | "failed"
+  | "duplicate";
+
+/**
+ * The role one workbook row plays inside its reconciled graduate group. A
+ * supplemental order is a further guest-payment or guest-update transaction
+ * that must be merged into the same graduate, never discarded as a
+ * duplicate and never turned into a second registration.
+ */
+export type ProductionImportOrderRoleEnum =
+  | "primary"
+  | "supplemental"
+  | "duplicate_submission"
+  | "excluded";
+
+export type ProductionImportGroupDecisionEnum =
+  | "needs_review"
+  | "approved"
+  | "excluded";
+
+export type ManualDeliveryKindEnum = "initial" | "resend" | "replacement";
+
+export type ProductionRegistrationImportRow = {
+  id: string;
+  event_id: string;
+  original_filename: string;
+  file_sha256: string;
+  file_size_bytes: number;
+  worksheet_name: string;
+  status: ProductionImportStatusEnum;
+  source_order_count: number;
+  graduate_count: number;
+  duplicate_submission_count: number;
+  supplemental_order_count: number;
+  needs_review_count: number;
+  excluded_count: number;
+  expected_ticket_count: number;
+  notices: Json;
+  created_by: string | null;
+  applied_by: string | null;
+  created_at: string;
+  applied_at: string | null;
+  updated_at: string;
+}
+
+export type ProductionRegistrationImportInsert = {
+  id?: string;
+  event_id: string;
+  original_filename: string;
+  file_sha256: string;
+  file_size_bytes: number;
+  worksheet_name: string;
+  status?: ProductionImportStatusEnum;
+  source_order_count?: number;
+  graduate_count?: number;
+  duplicate_submission_count?: number;
+  supplemental_order_count?: number;
+  needs_review_count?: number;
+  excluded_count?: number;
+  expected_ticket_count?: number;
+  notices?: Json;
+  created_by?: string | null;
+  applied_by?: string | null;
+  created_at?: string;
+  applied_at?: string | null;
+  updated_at?: string;
+}
+
+export type ProductionRegistrationImportUpdate =
+  Partial<ProductionRegistrationImportInsert>;
+
+export type ProductionImportGraduateRow = {
+  id: string;
+  import_id: string;
+  group_key: string;
+  canonical_full_name: string;
+  email: string | null;
+  phone: string | null;
+  gown_size: string | null;
+  name_pronunciation: string | null;
+  approved_adult_guests: number;
+  approved_children_0_4: number;
+  approved_children_5_10: number;
+  approved_adult_guest_names: Json;
+  fee_total: number;
+  tax_total: number;
+  order_total: number;
+  decision: ProductionImportGroupDecisionEnum;
+  review_reasons: Json;
+  reconciliation_note: string | null;
+  primary_source_order_id: string;
+  existing_registration_id: string | null;
+  applied_registration_id: string | null;
+  applied_at: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export type ProductionImportGraduateInsert = {
+  id?: string;
+  import_id: string;
+  group_key: string;
+  canonical_full_name: string;
+  email?: string | null;
+  phone?: string | null;
+  gown_size?: string | null;
+  name_pronunciation?: string | null;
+  approved_adult_guests?: number;
+  approved_children_0_4?: number;
+  approved_children_5_10?: number;
+  approved_adult_guest_names?: Json;
+  fee_total?: number;
+  tax_total?: number;
+  order_total?: number;
+  decision?: ProductionImportGroupDecisionEnum;
+  review_reasons?: Json;
+  reconciliation_note?: string | null;
+  primary_source_order_id: string;
+  existing_registration_id?: string | null;
+  applied_registration_id?: string | null;
+  applied_at?: string | null;
+  created_at?: string;
+  updated_at?: string;
+}
+
+export type ProductionImportGraduateUpdate =
+  Partial<ProductionImportGraduateInsert>;
+
+export type ProductionImportSourceOrderRow = {
+  id: string;
+  import_id: string;
+  graduate_id: string | null;
+  source_row_number: number;
+  source_order_id: string;
+  order_role: ProductionImportOrderRoleEnum;
+  graduate_full_name: string | null;
+  email: string | null;
+  phone: string | null;
+  gown_size: string | null;
+  name_pronunciation: string | null;
+  guest_1_name: string | null;
+  guest_2_name: string | null;
+  kids_0_4: number;
+  kids_5_10: number;
+  fee_total: number | null;
+  tax_total: number | null;
+  order_total: number | null;
+  source_note: string | null;
+  source_order_status: string | null;
+  source_order_date: string | null;
+  registration_status: RegistrationStatus;
+  payment_status: PaymentStatus;
+  validation_errors: Json;
+  validation_warnings: Json;
+  created_at: string;
+  updated_at: string;
+}
+
+export type ProductionImportSourceOrderInsert = {
+  id?: string;
+  import_id: string;
+  graduate_id?: string | null;
+  source_row_number: number;
+  source_order_id: string;
+  order_role?: ProductionImportOrderRoleEnum;
+  graduate_full_name?: string | null;
+  email?: string | null;
+  phone?: string | null;
+  gown_size?: string | null;
+  name_pronunciation?: string | null;
+  guest_1_name?: string | null;
+  guest_2_name?: string | null;
+  kids_0_4?: number;
+  kids_5_10?: number;
+  fee_total?: number | null;
+  tax_total?: number | null;
+  order_total?: number | null;
+  source_note?: string | null;
+  source_order_status?: string | null;
+  source_order_date?: string | null;
+  registration_status?: RegistrationStatus;
+  payment_status?: PaymentStatus;
+  validation_errors?: Json;
+  validation_warnings?: Json;
+  created_at?: string;
+  updated_at?: string;
+}
+
+export type ProductionImportSourceOrderUpdate =
+  Partial<ProductionImportSourceOrderInsert>;
+
+export type RegistrationSourceOrderRow = {
+  id: string;
+  event_id: string;
+  registration_id: string;
+  source_order_id: string;
+  order_role: ProductionImportOrderRoleEnum;
+  source_row_number: number | null;
+  import_id: string | null;
+  fee_total: number | null;
+  tax_total: number | null;
+  order_total: number | null;
+  source_order_date: string | null;
+  source_note: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export type RegistrationSourceOrderInsert = {
+  id?: string;
+  event_id: string;
+  registration_id: string;
+  source_order_id: string;
+  order_role?: ProductionImportOrderRoleEnum;
+  source_row_number?: number | null;
+  import_id?: string | null;
+  fee_total?: number | null;
+  tax_total?: number | null;
+  order_total?: number | null;
+  source_order_date?: string | null;
+  source_note?: string | null;
+  created_at?: string;
+  updated_at?: string;
+}
+
+export type RegistrationSourceOrderUpdate =
+  Partial<RegistrationSourceOrderInsert>;
+
+/**
+ * Append-only ledger of manual Gmail sends. Rows are inserted only through
+ * record_manual_ticket_send; a database trigger blocks updates and deletes,
+ * so the Update shape exists purely to satisfy the client generic.
+ */
+export type GraduationManualTicketSendRow = {
+  id: string;
+  event_id: string;
+  registration_id: string;
+  ticket_id: string | null;
+  document_id: string | null;
+  attempt_number: number;
+  send_kind: ManualDeliveryKindEnum;
+  idempotency_key: string;
+  intended_recipient_snapshot: string;
+  actual_recipient_snapshot: string | null;
+  mode: TicketDeliveryModeEnum;
+  provider: string;
+  outcome: string;
+  ticket_code_snapshot: string;
+  pdf_file_name_snapshot: string | null;
+  document_version_snapshot: number | null;
+  party_snapshot: Json;
+  reason: string | null;
+  note: string | null;
+  gmail_message_id: string | null;
+  sent_at: string;
+  recorded_by: string | null;
+  created_at: string;
+}
+
+export type GraduationManualTicketSendInsert = {
+  id?: string;
+  event_id: string;
+  registration_id: string;
+  ticket_id?: string | null;
+  document_id?: string | null;
+  attempt_number: number;
+  send_kind?: ManualDeliveryKindEnum;
+  idempotency_key: string;
+  intended_recipient_snapshot: string;
+  actual_recipient_snapshot?: string | null;
+  mode?: TicketDeliveryModeEnum;
+  provider?: string;
+  outcome?: string;
+  ticket_code_snapshot: string;
+  pdf_file_name_snapshot?: string | null;
+  document_version_snapshot?: number | null;
+  party_snapshot?: Json;
+  reason?: string | null;
+  note?: string | null;
+  gmail_message_id?: string | null;
+  sent_at?: string;
+  recorded_by?: string | null;
+  created_at?: string;
+}
+
+export type GraduationManualTicketSendUpdate =
+  Partial<GraduationManualTicketSendInsert>;
+
+export type GraduateRosterCandidateRow = {
+  id: string;
+  event_id: string;
+  student_id: string | null;
+  full_name: string;
+  email: string | null;
+  phone: string | null;
+  program: string | null;
+  batch: string | null;
+  registration_id: string | null;
+  internal_notes: string | null;
+  created_by: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export type GraduateRosterCandidateInsert = {
+  id?: string;
+  event_id: string;
+  student_id?: string | null;
+  full_name: string;
+  email?: string | null;
+  phone?: string | null;
+  program?: string | null;
+  batch?: string | null;
+  registration_id?: string | null;
+  internal_notes?: string | null;
+  created_by?: string | null;
+  created_at?: string;
+  updated_at?: string;
+}
+
+export type GraduateRosterCandidateUpdate =
+  Partial<GraduateRosterCandidateInsert>;
+
 export type Database = {
   public: {
     Tables: {
@@ -1210,9 +1543,65 @@ export type Database = {
         Update: GraduationTicketDeliveryResultImportLineUpdate;
         Relationships: [];
       };
+      production_registration_imports: {
+        Row: ProductionRegistrationImportRow;
+        Insert: ProductionRegistrationImportInsert;
+        Update: ProductionRegistrationImportUpdate;
+        Relationships: [];
+      };
+      production_import_graduates: {
+        Row: ProductionImportGraduateRow;
+        Insert: ProductionImportGraduateInsert;
+        Update: ProductionImportGraduateUpdate;
+        Relationships: [];
+      };
+      production_import_source_orders: {
+        Row: ProductionImportSourceOrderRow;
+        Insert: ProductionImportSourceOrderInsert;
+        Update: ProductionImportSourceOrderUpdate;
+        Relationships: [];
+      };
+      registration_source_orders: {
+        Row: RegistrationSourceOrderRow;
+        Insert: RegistrationSourceOrderInsert;
+        Update: RegistrationSourceOrderUpdate;
+        Relationships: [];
+      };
+      graduation_manual_ticket_sends: {
+        Row: GraduationManualTicketSendRow;
+        Insert: GraduationManualTicketSendInsert;
+        Update: GraduationManualTicketSendUpdate;
+        Relationships: [];
+      };
+      graduate_roster_candidates: {
+        Row: GraduateRosterCandidateRow;
+        Insert: GraduateRosterCandidateInsert;
+        Update: GraduateRosterCandidateUpdate;
+        Relationships: [];
+      };
     };
     Views: Record<string, never>;
     Functions: {
+      apply_production_registration_import: {
+        Args: { p_import_id: string; p_applied_by: string | null };
+        Returns: Json;
+      };
+      record_manual_ticket_send: {
+        Args: {
+          p_registration_id: string;
+          p_ticket_id: string;
+          p_document_id: string | null;
+          p_send_kind: ManualDeliveryKindEnum;
+          p_idempotency_key: string;
+          p_intended_recipient: string;
+          p_actual_recipient: string | null;
+          p_reason: string | null;
+          p_note: string | null;
+          p_gmail_message_id: string | null;
+          p_recorded_by: string | null;
+        };
+        Returns: Json;
+      };
       record_ticket_delivery_attempt: {
         Args: {
           p_actor_user_id: string;
@@ -1387,6 +1776,10 @@ export type Database = {
       ticket_document_batch_status: TicketDocumentBatchStatusEnum;
       ticket_document_batch_purpose: TicketDocumentBatchPurposeEnum;
       ticket_document_batch_item_status: TicketDocumentBatchItemStatusEnum;
+      production_import_status: ProductionImportStatusEnum;
+      production_import_order_role: ProductionImportOrderRoleEnum;
+      production_import_group_decision: ProductionImportGroupDecisionEnum;
+      manual_delivery_kind: ManualDeliveryKindEnum;
     };
     CompositeTypes: Record<string, never>;
   };

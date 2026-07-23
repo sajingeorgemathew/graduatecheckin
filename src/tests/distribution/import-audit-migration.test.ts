@@ -28,10 +28,22 @@ beforeAll(() => {
   migration = readFileSync(join(migrationsDir, fileName), "utf8").toLowerCase();
 });
 
+/**
+ * Migrations added after CHECKIN-09C. This migration must still sort after
+ * everything that preceded it, but later work is expected to sort after
+ * this one, so those files are excluded from the ordering check.
+ */
+const LATER_MIGRATIONS = ["_create_manual_production_workflow.sql"] as const;
+
 describe("result-import-row audit migration safety", () => {
   it("is timestamped after every previously deployed migration", () => {
     const others = readdirSync(migrationsDir)
-      .filter((file) => file !== fileName && file.endsWith(".sql"))
+      .filter(
+        (file) =>
+          file !== fileName &&
+          file.endsWith(".sql") &&
+          !LATER_MIGRATIONS.some((later) => file.endsWith(later))
+      )
       .map((file) => file.slice(0, 14));
     const mine = fileName.slice(0, 14);
     for (const other of others) {
