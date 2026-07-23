@@ -93,6 +93,43 @@ function isTerminalOutcome_(outcome) {
  * skippedNonTerminal }. rowNumbers are 1-based Sheet row numbers so the caller
  * can mark exactly the exported rows afterwards.
  */
+/**
+ * CHECKIN-10A result checkpoint.
+ *
+ * Counts terminal attempts in the active batch that have never been included
+ * in an export. Those are results the application has not seen yet, so its
+ * counters are behind the sheet. Sending again on top of them makes both sets
+ * of numbers untrustworthy, so the send actions warn on this first.
+ *
+ * Pure: takes already-read rows and returns a number.
+ */
+function countUnexportedAttempts_(dataRows, colIndex, activeBatchCode, activeMode) {
+  var selection = selectExportRows_(
+    dataRows,
+    colIndex,
+    activeBatchCode,
+    activeMode,
+    false
+  );
+  return selection.rows.length;
+}
+
+/** Reads the Send Log and reports the checkpoint count for the active batch. */
+function unexportedAttemptsForActiveBatch_(activeBatchCode, activeMode) {
+  var sheet = SpreadsheetApp.getActive().getSheetByName(TAB.LOG);
+  if (!sheet || sheet.getLastRow() < 2) {
+    return 0;
+  }
+  var values = sheet.getDataRange().getValues();
+  var colIndex = logColumnIndex_(values[0]);
+  return countUnexportedAttempts_(
+    values.slice(1),
+    colIndex,
+    activeBatchCode,
+    activeMode
+  );
+}
+
 function selectExportRows_(dataRows, colIndex, activeBatchCode, activeMode, includeExported) {
   var out = {
     rows: [],

@@ -24,6 +24,8 @@ const ROUTES = [
   "app/api/admin/tickets/distribution/batches/[batchId]/cancel/route.ts",
   "app/api/admin/tickets/distribution/results/preview/route.ts",
   "app/api/admin/tickets/distribution/results/apply/route.ts",
+  // CHECKIN-10A
+  "app/api/admin/tickets/distribution/external-deliveries/route.ts",
 ];
 
 const PAGES = [
@@ -31,6 +33,9 @@ const PAGES = [
   "app/admin/tickets/distribution/import-results/page.tsx",
   "app/admin/tickets/distribution/[batchCode]/page.tsx",
   "app/admin/tickets/distribution/import/[importId]/page.tsx",
+  // CHECKIN-10A
+  "app/admin/tickets/distribution/production/page.tsx",
+  "app/admin/tickets/distribution/runbook/page.tsx",
 ];
 
 describe("distribution route safety", () => {

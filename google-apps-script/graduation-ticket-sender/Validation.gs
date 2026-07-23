@@ -472,6 +472,38 @@ function applySendQueueCsv_(csvText, sourceLabel, forceReplace) {
     };
   }
 
+  // CHECKIN-10A: each workbook rejects the other's queue before a single row
+  // is written. A TEST workbook can never hold a production queue and a
+  // PRODUCTION workbook can never hold a test queue, so a mistaken paste is
+  // caught at the door rather than at send time.
+  var loadConfig = readConfig_();
+  var modeGate = queueModeAllowedInWorkbook_(
+    workbookMode_(loadConfig),
+    isolation.mode
+  );
+  if (!modeGate.allowed) {
+    return {
+      ok: false,
+      message: 'Load rejected (' + sourceLabel + ').\n\n' + modeGate.message,
+      loaded: 0,
+      skipped: 0,
+      rejected: 0
+    };
+  }
+  var eventGate = eventAllowedInWorkbook_(
+    workbookMode_(loadConfig),
+    isolation.eventCode
+  );
+  if (!eventGate.allowed) {
+    return {
+      ok: false,
+      message: 'Load rejected (' + sourceLabel + ').\n\n' + eventGate.message,
+      loaded: 0,
+      skipped: 0,
+      rejected: 0
+    };
+  }
+
   var summaryTab = SpreadsheetApp.getActive().getSheetByName(TAB.SUMMARY);
   var activeBatchCode = summaryTab
     ? String(getSummary_(summaryTab, ACTIVE_BATCH_FIELDS.CODE)).trim()

@@ -70,6 +70,8 @@ export type DeliveryExclusionReason =
   | "registration_ineligible"
   | "registration_cancelled"
   | "already_in_delivery_batch"
+  | "already_production_sent"
+  | "previously_sent_externally"
   | "mode_event_mismatch";
 
 /** Row parsed from an Apps Script results CSV, before validation. */

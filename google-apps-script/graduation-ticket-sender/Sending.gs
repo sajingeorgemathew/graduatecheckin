@@ -35,13 +35,18 @@ function assertSenderAllowed_(config, isProduction) {
   return effective;
 }
 
-function assertProductionUnlocked_(config) {
-  var phrase = String(config.PRODUCTION_CONFIRMATION).trim();
-  if (phrase !== PRODUCTION_CONFIRMATION_PHRASE) {
-    throw new Error(
-      'Production sending is locked. Set PRODUCTION_CONFIRMATION to exactly: ' +
-      PRODUCTION_CONFIRMATION_PHRASE
-    );
+/**
+ * CHECKIN-10A: production sending is unlocked by typing the EXACT active
+ * batch code into PRODUCTION_CONFIRMATION. The code must be read off the
+ * batch actually loaded, so the confirmation cannot become a reflex.
+ */
+function assertProductionUnlocked_(config, activeBatchCode) {
+  var decision = productionConfirmationDecision_(
+    config.PRODUCTION_CONFIRMATION,
+    activeBatchCode
+  );
+  if (!decision.allowed) {
+    throw new Error(decision.message);
   }
 }
 
@@ -95,6 +100,21 @@ function rowMatchesActiveBatch_(row, activeBatchCode, activeMode) {
   return code === wantBatch && mode === wantMode;
 }
 
+/**
+ * Pure: the effective ceiling for one run. The configured cap (already hard-
+ * limited to PRODUCTION_NORMAL_RUN_SIZE) may only be lowered by an explicit
+ * run limit, never raised — so the pilot is always at most five and a normal
+ * run is always at most twenty-five.
+ */
+function runCap_(config, limit) {
+  var cap = maxPerRun_(config);
+  var requested = parseInt(limit, 10);
+  if (isNaN(requested) || requested <= 0) {
+    return cap;
+  }
+  return Math.min(cap, requested);
+}
+
 /** Core row loop shared by Send Selected, Send Next 25 and Resume Failed. */
 function sendRows_(rowNumbers, options) {
   var lock = LockService.getScriptLock();
@@ -104,26 +124,38 @@ function sendRows_(rowNumbers, options) {
   }
   try {
     var config = readConfig_();
+    // assertConfigComplete_ also asserts WORKBOOK_MODE and TEST_MODE agree.
     assertConfigComplete_(config);
     var testMode = isTestMode_(config);
     var isProduction = !testMode;
-
-    if (isProduction) {
-      assertProductionUnlocked_(config);
-    }
-    var sender = assertSenderAllowed_(config, isProduction);
 
     // Active-batch identity is populated from the loaded signed queue. Every
     // send uses only these values, so a run can only ever touch one batch.
     var summary = SpreadsheetApp.getActive().getSheetByName(TAB.SUMMARY);
     var activeBatchCode = String(getSummary_(summary, ACTIVE_BATCH_FIELDS.CODE)).trim();
     var activeMode = String(getSummary_(summary, ACTIVE_BATCH_FIELDS.MODE)).trim().toLowerCase();
+    var activeEventCode = String(getSummary_(summary, ACTIVE_BATCH_FIELDS.EVENT)).trim();
     if (activeBatchCode === '' || activeMode === '') {
       SpreadsheetApp.getUi().alert(
         'No active batch is loaded. Load a signed send queue before sending.'
       );
       return;
     }
+
+    // CHECKIN-10A: the workbook's own identity is checked against the loaded
+    // queue on every send, not only at load time. A queue that somehow ended
+    // up in the wrong workbook still cannot be sent from it.
+    var queueGate = queueModeAllowedInWorkbook_(workbookMode_(config), activeMode);
+    if (!queueGate.allowed) {
+      SpreadsheetApp.getUi().alert(queueGate.message);
+      return;
+    }
+    var eventGate = eventAllowedInWorkbook_(workbookMode_(config), activeEventCode);
+    if (!eventGate.allowed) {
+      SpreadsheetApp.getUi().alert(eventGate.message);
+      return;
+    }
+
     var runMode = testMode ? 'test' : 'production';
     if (activeMode !== runMode) {
       SpreadsheetApp.getUi().alert(
@@ -134,13 +166,40 @@ function sendRows_(rowNumbers, options) {
       return;
     }
 
+    // CHECKIN-10A: the exact active batch code must have been typed into
+    // PRODUCTION_CONFIRMATION. Checked after the batch is known, because the
+    // batch code IS the confirmation.
+    if (isProduction) {
+      assertProductionUnlocked_(config, activeBatchCode);
+    }
+    var sender = assertSenderAllowed_(config, isProduction);
+
+    // CHECKIN-10A result checkpoint: refuse to pile a new run on top of
+    // attempts the application has never seen.
+    var waiting = unexportedAttemptsForActiveBatch_(activeBatchCode, activeMode);
+    if (waiting > 0) {
+      var proceed = SpreadsheetApp.getUi().alert(
+        'Results waiting to be exported',
+        waiting + ' attempt(s) for batch ' + activeBatchCode + ' have not been ' +
+        'exported yet, so the application does not know about them. Export New ' +
+        'Results for Active Batch and import them before sending again.\n\n' +
+        'Continue anyway?',
+        SpreadsheetApp.getUi().ButtonSet.YES_NO
+      );
+      if (proceed !== SpreadsheetApp.getUi().Button.YES) {
+        return;
+      }
+    }
+
     var sheet = SpreadsheetApp.getActive().getSheetByName(TAB.QUEUE);
     var queue = readQueue_();
     var rowsByNumber = {};
     for (var q = 0; q < queue.rows.length; q++) {
       rowsByNumber[queue.rows[q].__rowNumber] = queue.rows[q];
     }
-    var perRunCap = maxPerRun_(config);
+    // The configured ceiling, further reduced by an explicit run limit such as
+    // the five-recipient pilot. A run limit can only ever lower the cap.
+    var perRunCap = runCap_(config, options.limit);
     var sent = 0;
     var startTime = new Date().getTime();
 
@@ -329,15 +388,48 @@ function sendSelected() {
   sendRows_(numbers, { allowFailedRetry: false });
 }
 
-function sendNext25() {
-  var queue = readQueue_();
+/**
+ * Pure: the READY row numbers, in sheet order. A row that is already SENT,
+ * TEST_SENT or SENDING is never returned, which is what makes an interrupted
+ * run resume on the remaining rows only and never re-send a successful one.
+ */
+function readyRowNumbers_(rows) {
   var numbers = [];
-  for (var i = 0; i < queue.rows.length; i++) {
-    if (String(queue.rows[i].status).toUpperCase() === 'READY') {
-      numbers.push(queue.rows[i].__rowNumber);
+  for (var i = 0; i < rows.length; i++) {
+    if (String(rows[i].status).toUpperCase() === 'READY') {
+      numbers.push(rows[i].__rowNumber);
     }
   }
-  sendRows_(numbers, { allowFailedRetry: false });
+  return numbers;
+}
+
+function sendNext25() {
+  var queue = readQueue_();
+  sendRows_(readyRowNumbers_(queue.rows), {
+    allowFailedRetry: false,
+    limit: PRODUCTION_NORMAL_RUN_SIZE
+  });
+}
+
+/**
+ * CHECKIN-10A five-recipient production pilot.
+ *
+ * Sends at most PRODUCTION_PILOT_RUN_SIZE prepared rows and then stops. There
+ * is no automatic continuation: the administrator must export and import the
+ * results and verify them before any larger run. If fewer than five rows
+ * remain, it sends only those.
+ */
+function sendProductionPilot() {
+  var queue = readQueue_();
+  var numbers = readyRowNumbers_(queue.rows).slice(0, PRODUCTION_PILOT_RUN_SIZE);
+  if (numbers.length === 0) {
+    SpreadsheetApp.getUi().alert('No prepared rows remain in the active batch.');
+    return;
+  }
+  sendRows_(numbers, {
+    allowFailedRetry: false,
+    limit: PRODUCTION_PILOT_RUN_SIZE
+  });
 }
 
 function resumeFailed() {
@@ -348,7 +440,7 @@ function resumeFailed() {
       numbers.push(queue.rows[i].__rowNumber);
     }
   }
-  sendRows_(numbers, { allowFailedRetry: true });
+  sendRows_(numbers, { allowFailedRetry: true, limit: PRODUCTION_NORMAL_RUN_SIZE });
 }
 
 /** Test send for the selected row. Only ever goes to TEST_RECIPIENT_EMAIL. */

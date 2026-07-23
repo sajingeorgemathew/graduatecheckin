@@ -21,6 +21,7 @@ import type {
   GraduationTicketDocumentBatchItemRow,
   GraduationTicketDocumentBatchRow,
   GraduationTicketDocumentRow,
+  GraduationTicketExternalDeliveryRow,
   Json,
   TicketDeliveryAttemptOutcomeEnum,
   TicketDeliveryModeEnum,
@@ -547,6 +548,239 @@ export async function listAttemptReferencesForBatch(
     }
   }
   return result;
+}
+
+// ---- External delivery records (CHECKIN-10A) --------------------------
+//
+// A record that a ticket reached a graduate outside this system. It is never
+// a send attempt: nothing here writes to graduation_ticket_delivery_attempts.
+
+export async function insertExternalDelivery(
+  values: Database["public"]["Tables"]["graduation_ticket_external_deliveries"]["Insert"]
+): Promise<GraduationTicketExternalDeliveryRow> {
+  const { data, error } = await db()
+    .from("graduation_ticket_external_deliveries")
+    .insert(values)
+    .select("*")
+    .single();
+  if (error || data === null) {
+    throw operationError("insert external delivery");
+  }
+  return data;
+}
+
+export async function listExternalDeliveries(
+  eventId: string
+): Promise<GraduationTicketExternalDeliveryRow[]> {
+  const { data, error } = await db()
+    .from("graduation_ticket_external_deliveries")
+    .select("*")
+    .eq("event_id", eventId)
+    .order("previous_send_date", { ascending: false });
+  if (error) {
+    throw operationError("list external deliveries");
+  }
+  return data ?? [];
+}
+
+/** Registration ids with at least one recorded prior external delivery. */
+export async function listExternallyDeliveredRegistrations(
+  eventId: string
+): Promise<Set<string>> {
+  const rows = await listExternalDeliveries(eventId);
+  return new Set(rows.map((row) => row.registration_id));
+}
+
+// ---- Production eligibility facts (CHECKIN-10A) -----------------------
+
+/**
+ * Registration ids whose production delivery has already succeeded. Derived
+ * from production-mode batches only, so a successful internal test send never
+ * makes a graduate look production-sent.
+ */
+export async function listProductionSentRegistrations(
+  eventId: string
+): Promise<Set<string>> {
+  const batches = await listDeliveryBatches(eventId);
+  const productionBatchIds = batches
+    .filter((batch) => batch.mode === "production")
+    .map((batch) => batch.id);
+  const result = new Set<string>();
+  if (productionBatchIds.length === 0) {
+    return result;
+  }
+  const { data, error } = await db()
+    .from("graduation_ticket_deliveries")
+    .select("registration_id, status")
+    .in("delivery_batch_id", productionBatchIds);
+  if (error) {
+    throw operationError("list production sent registrations");
+  }
+  for (const row of data ?? []) {
+    if (row.status === "sent" || row.status === "resent") {
+      result.add(row.registration_id);
+    }
+  }
+  return result;
+}
+
+/** Registration ids whose latest production delivery failed or bounced. */
+export async function listProductionFailedRegistrations(
+  eventId: string
+): Promise<Set<string>> {
+  const batches = await listDeliveryBatches(eventId);
+  const productionBatchIds = batches
+    .filter((batch) => batch.mode === "production")
+    .map((batch) => batch.id);
+  const result = new Set<string>();
+  if (productionBatchIds.length === 0) {
+    return result;
+  }
+  const { data, error } = await db()
+    .from("graduation_ticket_deliveries")
+    .select("registration_id, status")
+    .in("delivery_batch_id", productionBatchIds);
+  if (error) {
+    throw operationError("list production failed registrations");
+  }
+  for (const row of data ?? []) {
+    if (
+      row.status === "failed" ||
+      row.status === "bounce_detected" ||
+      row.status === "resend_required"
+    ) {
+      result.add(row.registration_id);
+    }
+  }
+  return result;
+}
+
+/** Registration ids sitting in a production batch that is still open. */
+export async function listRegistrationsInOpenProductionBatches(
+  eventId: string
+): Promise<Set<string>> {
+  const batches = await listDeliveryBatches(eventId);
+  const openIds = batches
+    .filter(
+      (batch) =>
+        batch.mode === "production" &&
+        (batch.status === "draft" ||
+          batch.status === "prepared" ||
+          batch.status === "sending" ||
+          batch.status === "partial")
+    )
+    .map((batch) => batch.id);
+  const result = new Set<string>();
+  if (openIds.length === 0) {
+    return result;
+  }
+  const { data, error } = await db()
+    .from("graduation_ticket_deliveries")
+    .select("registration_id, status")
+    .in("delivery_batch_id", openIds);
+  if (error) {
+    throw operationError("list open production batch registrations");
+  }
+  for (const row of data ?? []) {
+    if (row.status === "prepared") {
+      result.add(row.registration_id);
+    }
+  }
+  return result;
+}
+
+export interface EventRegistrationRecord {
+  id: string;
+  graduate_full_name: string;
+  email: string | null;
+  registration_status: string;
+}
+
+/** Every registration of the event, for the production eligibility preview. */
+export async function listEventRegistrations(
+  eventId: string
+): Promise<EventRegistrationRecord[]> {
+  const rows: EventRegistrationRecord[] = [];
+  for (let offset = 0; ; offset += CHUNK) {
+    const { data, error } = await db()
+      .from("graduation_registrations")
+      .select("id, graduate_full_name, email, registration_status")
+      .eq("event_id", eventId)
+      .order("id", { ascending: true })
+      .range(offset, offset + CHUNK - 1);
+    if (error) {
+      throw operationError("list event registrations");
+    }
+    const chunk = (data ?? []) as unknown as EventRegistrationRecord[];
+    rows.push(...chunk);
+    if (chunk.length < CHUNK) {
+      break;
+    }
+  }
+  return rows;
+}
+
+export interface RegistrationTicketState {
+  registrationId: string;
+  ticketId: string;
+  status: string;
+}
+
+/**
+ * The most relevant ticket per registration: an active ticket when one
+ * exists, otherwise the latest non-active one so a revoked or replaced ticket
+ * is still visible to the eligibility preview.
+ */
+export async function listRegistrationTicketStates(
+  registrationIds: readonly string[]
+): Promise<Map<string, RegistrationTicketState>> {
+  const result = new Map<string, RegistrationTicketState>();
+  for (let offset = 0; offset < registrationIds.length; offset += CHUNK) {
+    const slice = registrationIds.slice(offset, offset + CHUNK);
+    if (slice.length === 0) {
+      break;
+    }
+    const { data, error } = await db()
+      .from("graduation_tickets")
+      .select("id, registration_id, status, created_at")
+      .in("registration_id", slice)
+      .order("created_at", { ascending: true });
+    if (error) {
+      throw operationError("list registration ticket states");
+    }
+    for (const row of (data ?? []) as unknown as Array<{
+      id: string;
+      registration_id: string;
+      status: string;
+    }>) {
+      const existing = result.get(row.registration_id);
+      // An active ticket always wins; otherwise the latest non-active ticket
+      // is kept so a revoked or replaced ticket stays visible.
+      if (existing === undefined || existing.status !== "active") {
+        result.set(row.registration_id, {
+          registrationId: row.registration_id,
+          ticketId: row.id,
+          status: row.status,
+        });
+      }
+    }
+  }
+  return result;
+}
+
+/** Registration ids that currently hold a distributable PDF document. */
+export async function listRegistrationsWithCurrentDocument(
+  eventId: string
+): Promise<Set<string>> {
+  const { data, error } = await db()
+    .from("graduation_ticket_documents")
+    .select("registration_id, status")
+    .eq("event_id", eventId)
+    .eq("status", "current");
+  if (error) {
+    throw operationError("list current documents for event");
+  }
+  return new Set((data ?? []).map((row) => row.registration_id));
 }
 
 // ---- Security-definer RPCs -------------------------------------------

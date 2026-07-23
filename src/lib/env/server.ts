@@ -14,7 +14,11 @@ export interface ServerEnvInput {
 }
 
 const serverEnvSchema = z.object({
-  APP_ENV: z.enum(["development", "test", "production"]).default("development"),
+  // CHECKIN-10A adds "preview" so a Vercel Preview deployment is a distinct,
+  // non-production environment rather than being mistaken for production.
+  APP_ENV: z
+    .enum(["development", "test", "preview", "production"])
+    .default("development"),
   // Secrets stay optional so the project builds before real credentials are
   // added. Modules that require them must check for presence at call time.
   SUPABASE_SERVICE_ROLE_KEY: z.string().default(""),

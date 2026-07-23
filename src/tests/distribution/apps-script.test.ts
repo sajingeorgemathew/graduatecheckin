@@ -28,8 +28,12 @@ describe("Apps Script sender safeguards", () => {
     expect(source).toContain("perRunCap");
   });
 
-  it("enforces the production confirmation phrase", () => {
-    expect(read("Config.gs")).toContain("SEND CONVOCATION 2026 TICKETS");
+  it("enforces the production confirmation and clears it after every run", () => {
+    // CHECKIN-10A replaced the fixed phrase with the exact active batch code,
+    // which is strictly stronger: it cannot be memorised ahead of time and has
+    // to be read off the batch actually loaded.
+    expect(read("Config.gs")).toContain("productionConfirmationDecision_");
+    expect(read("Config.gs")).not.toContain("SEND CONVOCATION 2026 TICKETS");
     expect(read("Sending.gs")).toContain("assertProductionUnlocked_");
     expect(read("Sending.gs")).toContain("clearProductionConfirmation_");
   });

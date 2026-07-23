@@ -21,9 +21,11 @@ function onOpen() {
     .addItem('Validate Batch', 'validateBatch')
     .addItem('Send Test for Selected Row', 'sendTestForSelectedRow')
     .addItem('Send Selected', 'sendSelected')
+    .addItem('Send 5-Recipient Production Pilot', 'sendProductionPilot')
     .addItem('Send Next 25', 'sendNext25')
     .addItem('Resume Failed', 'resumeFailed')
     .addSeparator()
+    .addItem('Show Workbook Mode', 'showWorkbookMode')
     .addItem('Scan Bounce Messages', 'scanBounceMessages')
     .addItem('Export New Results for Active Batch', 'exportNewResultsForActiveBatch')
     .addItem('Re-export All Results for Active Batch', 'reExportAllResultsForActiveBatch')
@@ -40,8 +42,41 @@ function setupWorkbook() {
   ensureLogTab_(ss);
   ensureBounceTab_(ss);
   ensureArchiveTab_(ss);
+  ensureWorkbookBanner_(ss);
   SpreadsheetApp.getUi().alert(
-    'Workbook ready. Fill in the Configuration tab, then Load Send Queue CSV.'
+    'Workbook ready.\n\n' + workbookBanner_(readConfig_()) +
+    '\n\nFill in the Configuration tab, then Load Send Queue CSV.'
+  );
+}
+
+/**
+ * CHECKIN-10A: writes the workbook-mode banner into the top of the
+ * Configuration tab so the identity of the spreadsheet is visible without
+ * opening a menu. Rewritten on every setup so it can never go stale.
+ */
+function ensureWorkbookBanner_(ss) {
+  var sheet = ss.getSheetByName(TAB.CONFIG);
+  if (!sheet) {
+    return;
+  }
+  var config = readConfig_();
+  var production = isProductionWorkbook_(config);
+  var cell = sheet.getRange('D1');
+  cell.setValue(workbookBanner_(config));
+  cell.setFontWeight('bold');
+  cell.setFontColor(production ? '#7f1d1d' : '#1e3a5f');
+  cell.setBackground(production ? '#fee2e2' : '#fef3c7');
+}
+
+/** Menu action: states plainly which workbook this is. */
+function showWorkbookMode() {
+  var config = readConfig_();
+  SpreadsheetApp.getUi().alert(
+    workbookBanner_(config) +
+    '\n\nWORKBOOK_MODE: ' + workbookMode_(config) +
+    '\nTEST_MODE: ' + String(config.TEST_MODE) +
+    '\nMaximum per run: ' + maxPerRun_(config) +
+    '\nPilot size: ' + PRODUCTION_PILOT_RUN_SIZE
   );
 }
 

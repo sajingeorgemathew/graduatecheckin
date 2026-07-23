@@ -96,6 +96,8 @@ export async function prepareDeliveryBatch(input: {
   documentBatchId: string;
   mode: DeliveryMode;
   purpose: DeliveryPurpose;
+  /** CHECKIN-10A: required for resend and replacement batches. */
+  purposeReason?: string;
   allowTestRecipientOverride: boolean;
   secret: string;
 }): Promise<DistributionServiceResult<PrepareBatchResult>> {
@@ -145,11 +147,16 @@ export async function prepareDeliveryBatch(input: {
   );
   const registrationIds = [...new Set(items.map((item) => item.registration_id))];
 
-  const [registrations, tickets, alreadyBatched] = await Promise.all([
-    repo.getRegistrationsByIds(registrationIds),
-    repo.getActiveTicketsByRegistrationIds(registrationIds),
-    repo.listRegistrationsInDeliveryBatches(documentBatch.event_id),
-  ]);
+  const [registrations, tickets, alreadyBatched, externallySent, productionSent] =
+    await Promise.all([
+      repo.getRegistrationsByIds(registrationIds),
+      repo.getActiveTicketsByRegistrationIds(registrationIds),
+      repo.listRegistrationsInDeliveryBatches(documentBatch.event_id),
+      // CHECKIN-10A: a recorded prior external delivery and a completed
+      // production send both remove a graduate from an initial batch.
+      repo.listExternallyDeliveredRegistrations(documentBatch.event_id),
+      repo.listProductionSentRegistrations(documentBatch.event_id),
+    ]);
   const ticketIds = [...tickets.values()].map((ticket) => ticket.id);
   const documents = await repo.getCurrentDocumentsByTicketIds(ticketIds);
 
@@ -184,6 +191,9 @@ export async function prepareDeliveryBatch(input: {
 
     const eligibility = evaluateDeliveryEligibility({
       mode: input.mode,
+      purpose: input.purpose,
+      alreadyProductionSent: productionSent.has(item.registration_id),
+      previouslySentExternally: externallySent.has(item.registration_id),
       eventId: documentBatch.event_id,
       eventIsTest: event.is_test,
       allowTestRecipientOverride: input.allowTestRecipientOverride,
@@ -256,6 +266,7 @@ export async function prepareDeliveryBatch(input: {
     purpose: input.purpose,
     status: "prepared",
     prepared_count: prepared.length,
+    purpose_reason: (input.purposeReason ?? "").trim() || null,
     source_manifest_sha256: documentBatch.manifest_sha256,
     prepared_at: preparedAt,
     created_by: input.actorUserId,

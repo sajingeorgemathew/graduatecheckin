@@ -70,6 +70,7 @@ var ACTIVE_BATCH_FIELDS = {
 };
 
 var CONFIG_KEYS = [
+  'WORKBOOK_MODE',
   'TEST_MODE',
   'AUTHORIZED_SENDER_EMAIL',
   'TEST_RECIPIENT_EMAIL',
@@ -85,6 +86,9 @@ var CONFIG_KEYS = [
 ];
 
 var CONFIG_DEFAULTS = {
+  // CHECKIN-10A: a fresh workbook is always a TEST workbook. Becoming a
+  // production workbook is a deliberate, manual edit, never a default.
+  WORKBOOK_MODE: 'TEST',
   TEST_MODE: 'TRUE',
   AUTHORIZED_SENDER_EMAIL: 'office@torontoacademy.ca',
   TEST_RECIPIENT_EMAIL: '',
@@ -102,8 +106,171 @@ var CONFIG_DEFAULTS = {
   LAST_VALIDATED_AT: ''
 };
 
-/** The exact phrase required to unlock a production send. */
-var PRODUCTION_CONFIRMATION_PHRASE = 'SEND CONVOCATION 2026 TICKETS';
+/**
+ * CHECKIN-10A workbook modes.
+ *
+ * WORKBOOK_MODE is the identity of the whole spreadsheet, not of one run. A
+ * TEST workbook can never send to a graduate and can never load a production
+ * queue; a PRODUCTION workbook can never load a test queue. The two workbooks
+ * are separate Google Sheets and neither can be turned into the other by
+ * loading a different file.
+ */
+var WORKBOOK_MODES = { TEST: 'TEST', PRODUCTION: 'PRODUCTION' };
+
+var WORKBOOK_BANNERS = {
+  TEST: 'TEST WORKBOOK — all messages are redirected to the internal test recipient.',
+  PRODUCTION: 'PRODUCTION WORKBOOK — messages are delivered to graduate email addresses.'
+};
+
+/** The event code a production workbook is allowed to send for. */
+var PRODUCTION_EVENT_CODE = 'CONVOCATION-2026';
+
+/** Safe production run sizes. The pilot is deliberately tiny. */
+var PRODUCTION_PILOT_RUN_SIZE = 5;
+var PRODUCTION_NORMAL_RUN_SIZE = 25;
+
+/**
+ * Reads WORKBOOK_MODE, failing closed to TEST. Any value that is not exactly
+ * PRODUCTION is treated as TEST, so a typo can only ever make the workbook
+ * safer, never more dangerous.
+ */
+function workbookMode_(config) {
+  var value = String(config.WORKBOOK_MODE === undefined ? '' : config.WORKBOOK_MODE)
+    .trim()
+    .toUpperCase();
+  return value === WORKBOOK_MODES.PRODUCTION
+    ? WORKBOOK_MODES.PRODUCTION
+    : WORKBOOK_MODES.TEST;
+}
+
+function isProductionWorkbook_(config) {
+  return workbookMode_(config) === WORKBOOK_MODES.PRODUCTION;
+}
+
+/** The banner text for the current workbook mode. */
+function workbookBanner_(config) {
+  return WORKBOOK_BANNERS[workbookMode_(config)];
+}
+
+/**
+ * WORKBOOK_MODE and TEST_MODE must agree. A production workbook running with
+ * TEST_MODE on would silently redirect real tickets to an internal inbox; a
+ * test workbook with TEST_MODE off would send to real graduates. Both are
+ * refused.
+ */
+function assertWorkbookModeConsistent_(config) {
+  var mode = workbookMode_(config);
+  var testMode = isTestMode_(config);
+  if (mode === WORKBOOK_MODES.PRODUCTION && testMode) {
+    throw new Error(
+      'WORKBOOK_MODE is PRODUCTION but TEST_MODE is TRUE. Set TEST_MODE to ' +
+      'FALSE in the production workbook, or use the test workbook instead.'
+    );
+  }
+  if (mode === WORKBOOK_MODES.TEST && !testMode) {
+    throw new Error(
+      'WORKBOOK_MODE is TEST but TEST_MODE is FALSE. A test workbook must ' +
+      'never send to a graduate. Set TEST_MODE to TRUE.'
+    );
+  }
+}
+
+/**
+ * Pure guard: may a queue of this delivery mode be loaded into a workbook of
+ * this workbook mode? Each workbook rejects the other's queue. Returns
+ * { allowed, message }.
+ */
+function queueModeAllowedInWorkbook_(workbookMode, queueMode) {
+  var wb = String(workbookMode === undefined ? '' : workbookMode).trim().toUpperCase();
+  var qm = String(queueMode === undefined ? '' : queueMode).trim().toLowerCase();
+  if (wb !== WORKBOOK_MODES.PRODUCTION) {
+    wb = WORKBOOK_MODES.TEST;
+  }
+  if (qm !== 'test' && qm !== 'production') {
+    return {
+      allowed: false,
+      message:
+        'The queue does not declare a recognised delivery mode ("' + qm +
+        '"). Export a fresh send queue from the application.'
+    };
+  }
+  if (wb === WORKBOOK_MODES.TEST && qm === 'production') {
+    return {
+      allowed: false,
+      message:
+        'This is the TEST workbook and the queue is a PRODUCTION queue. ' +
+        'Production queues may only be loaded into the production workbook. ' +
+        'Open "Toronto Academy Convocation 2026 - PRODUCTION DISTRIBUTION" instead.'
+    };
+  }
+  if (wb === WORKBOOK_MODES.PRODUCTION && qm === 'test') {
+    return {
+      allowed: false,
+      message:
+        'This is the PRODUCTION workbook and the queue is a TEST queue. ' +
+        'Test queues may only be loaded into the test workbook. ' +
+        'Open "Toronto Academy Graduation Tickets - TEST" instead.'
+    };
+  }
+  return { allowed: true, message: '' };
+}
+
+/**
+ * Pure guard: a production workbook may only ever send for the production
+ * event. Returns { allowed, message }.
+ */
+function eventAllowedInWorkbook_(workbookMode, eventCode) {
+  var wb = String(workbookMode === undefined ? '' : workbookMode).trim().toUpperCase();
+  if (wb !== WORKBOOK_MODES.PRODUCTION) {
+    return { allowed: true, message: '' };
+  }
+  var code = String(eventCode === undefined ? '' : eventCode).trim();
+  if (code !== PRODUCTION_EVENT_CODE) {
+    return {
+      allowed: false,
+      message:
+        'The production workbook only sends for ' + PRODUCTION_EVENT_CODE +
+        '. The loaded queue is for "' + code + '".'
+    };
+  }
+  return { allowed: true, message: '' };
+}
+
+/**
+ * CHECKIN-10A: the production confirmation is the EXACT active batch code,
+ * not a fixed phrase. A memorised phrase can be typed on autopilot; the batch
+ * code has to be read off the Batch Summary tab of the batch actually loaded,
+ * which is what makes it a real confirmation. Returns { allowed, message }.
+ */
+function productionConfirmationDecision_(confirmationValue, activeBatchCode) {
+  var typed = String(confirmationValue === undefined ? '' : confirmationValue).trim();
+  var expected = String(activeBatchCode === undefined ? '' : activeBatchCode).trim();
+  if (expected === '') {
+    return {
+      allowed: false,
+      message:
+        'No active batch is loaded, so there is no batch code to confirm. ' +
+        'Load a signed send queue first.'
+    };
+  }
+  if (typed === '') {
+    return {
+      allowed: false,
+      message:
+        'Production sending is locked. Set PRODUCTION_CONFIRMATION to exactly ' +
+        'the active batch code: ' + expected
+    };
+  }
+  if (typed !== expected) {
+    return {
+      allowed: false,
+      message:
+        'PRODUCTION_CONFIRMATION does not match the active batch code. ' +
+        'It must be exactly: ' + expected
+    };
+  }
+  return { allowed: true, message: '' };
+}
 
 /** Reads all configuration into a plain object keyed by CONFIG_KEYS. */
 function readConfig_() {
@@ -138,6 +305,7 @@ function writeConfig_(key, value) {
 /** Throws when any required configuration value is absent. Fails closed. */
 function assertConfigComplete_(config) {
   var required = [
+    'WORKBOOK_MODE',
     'TEST_MODE',
     'AUTHORIZED_SENDER_EMAIL',
     'REPLY_TO_EMAIL',
@@ -153,16 +321,29 @@ function assertConfigComplete_(config) {
       config.TEST_RECIPIENT_EMAIL.length === 0)) {
     throw new Error('TEST_MODE is on but TEST_RECIPIENT_EMAIL is empty.');
   }
+  // CHECKIN-10A: the workbook's declared identity and its sending mode must
+  // agree before anything else is considered.
+  assertWorkbookModeConsistent_(config);
 }
 
 function isTestMode_(config) {
   return String(config.TEST_MODE).toUpperCase() === 'TRUE';
 }
 
+/**
+ * The per-run ceiling.
+ *
+ * CHECKIN-10A hard-caps a production run at PRODUCTION_NORMAL_RUN_SIZE. The
+ * cap is applied in code rather than trusted from the Configuration tab, so
+ * raising MAX_PER_RUN in the sheet can lower the ceiling but never raise it
+ * above 25 for a production workbook. A test workbook is capped the same way;
+ * its messages go to the internal test recipient regardless.
+ */
 function maxPerRun_(config) {
+  var ceiling = PRODUCTION_NORMAL_RUN_SIZE;
   var value = parseInt(config.MAX_PER_RUN, 10);
   if (isNaN(value) || value <= 0) {
-    return 25;
+    return ceiling;
   }
-  return Math.min(value, 100);
+  return Math.min(value, ceiling);
 }

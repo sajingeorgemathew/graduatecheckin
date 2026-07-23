@@ -2,6 +2,7 @@ import Link from "next/link";
 
 import { requireAdministratorPage } from "@/features/auth/guards";
 import { DistributionWorkspace } from "@/features/distribution/components/distribution-workspace";
+import { resolveProductionGateStatus } from "@/features/distribution/deployment";
 import { loadDistributionAdminData } from "@/features/distribution/read-service";
 
 /**
@@ -40,6 +41,7 @@ function SummaryCard({
 export default async function TicketDistributionPage() {
   await requireAdministratorPage("/admin/tickets/distribution");
   const result = await loadDistributionAdminData();
+  const gate = await resolveProductionGateStatus();
 
   return (
     <main className="mx-auto w-full max-w-6xl flex-1 px-6 py-8 sm:px-10">
@@ -65,7 +67,19 @@ export default async function TicketDistributionPage() {
             </p>
           )}
         </div>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
+          <Link
+            href="/admin/tickets/distribution/production"
+            className="inline-block rounded-md border border-navy/20 bg-white px-4 py-2 text-center text-sm font-semibold text-navy hover:border-navy/40"
+          >
+            Production controls
+          </Link>
+          <Link
+            href="/admin/tickets/distribution/runbook"
+            className="inline-block rounded-md border border-navy/20 bg-white px-4 py-2 text-center text-sm font-semibold text-navy hover:border-navy/40"
+          >
+            Operator runbook
+          </Link>
           <Link
             href="/admin/tickets/distribution/import-results"
             className="inline-block rounded-md border border-navy/20 bg-white px-4 py-2 text-center text-sm font-semibold text-navy hover:border-navy/40"
@@ -137,6 +151,8 @@ export default async function TicketDistributionPage() {
             batches={result.data.batches}
             resultImports={result.data.resultImports}
             distributionConfigured={result.data.distributionConfigured}
+            productionAllowed={gate.productionAllowed}
+            productionBlockedReason={gate.blockedReason}
           />
         </>
       )}

@@ -83,6 +83,44 @@ export const DEV_EVENT_CODE = "GRAD-2026-DEV";
 /** Maximum registrations a single delivery batch may cover. */
 export const MAX_DELIVERY_BATCH_SIZE = 50;
 
+/**
+ * CHECKIN-10A safe production run sizes. The pilot is deliberately tiny so a
+ * misconfiguration is discovered after five recipients, not two hundred; the
+ * normal run is capped so one execution can never empty a whole event.
+ */
+export const PRODUCTION_PILOT_RUN_SIZE = 5;
+export const PRODUCTION_NORMAL_RUN_SIZE = 25;
+
+/** Channels a previously-sent-outside-the-system record may cite. */
+export const EXTERNAL_DELIVERY_CHANNELS = [
+  "personal_email",
+  "office_email",
+  "printed_handout",
+  "messaging_app",
+  "other",
+] as const;
+export type ExternalDeliveryChannel =
+  (typeof EXTERNAL_DELIVERY_CHANNELS)[number];
+
+export const EXTERNAL_DELIVERY_CHANNEL_LABELS: Record<
+  ExternalDeliveryChannel,
+  string
+> = {
+  personal_email: "Personal email",
+  office_email: "Office email",
+  printed_handout: "Printed handout",
+  messaging_app: "Messaging app",
+  other: "Other",
+};
+
+/**
+ * The one sentence every distribution surface uses to explain the difference
+ * between the two corrective purposes. Kept here so the wording cannot drift
+ * between the control centre, the production panel and the runbook.
+ */
+export const RESEND_VS_REPLACEMENT_TEXT =
+  "Resend sends the same valid ticket again. Replacement creates a new ticket and invalidates the old one.";
+
 /** Upper bound on an uploaded results CSV, matching the export ceiling. */
 export const MAX_RESULT_CSV_BYTES = 2_000_000;
 

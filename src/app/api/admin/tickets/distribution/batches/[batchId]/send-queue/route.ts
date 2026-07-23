@@ -2,6 +2,8 @@ import { NextResponse } from "next/server";
 
 import { guardFailureResponse } from "@/features/auth/errors";
 import { requireAdministrator } from "@/features/auth/guards";
+import { resolveModeGate } from "@/features/distribution/deployment";
+import * as distributionRepo from "@/features/distribution/repository";
 import { buildSendQueueForBatch } from "@/features/distribution/service";
 import { ticketJsonResponse } from "@/features/tickets/http";
 
@@ -24,6 +26,21 @@ export async function GET(
 
   const { batchId } = await context.params;
   try {
+    // CHECKIN-10A: exporting a PRODUCTION sending package is itself a
+    // production control. It is refused anywhere but the production
+    // deployment with the production event active, so a preview or local
+    // environment can never hand an administrator a real send queue.
+    const batch = await distributionRepo.getDeliveryBatch(batchId);
+    if (batch !== null) {
+      const gate = await resolveModeGate(batch.mode);
+      if (!gate.allowed) {
+        return ticketJsonResponse(
+          { error: { code: gate.code, message: gate.message } },
+          403
+        );
+      }
+    }
+
     const result = await buildSendQueueForBatch(batchId);
     if (!result.ok) {
       return ticketJsonResponse(

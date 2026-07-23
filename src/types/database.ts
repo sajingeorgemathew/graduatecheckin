@@ -705,6 +705,8 @@ export type GraduationTicketDeliveryBatchRow = {
   cancelled_at: string | null;
   source_manifest_sha256: string | null;
   results_imported_at: string | null;
+  /** CHECKIN-10A: why a resend or replacement batch was prepared. */
+  purpose_reason: string | null;
   updated_at: string;
 }
 
@@ -729,11 +731,47 @@ export type GraduationTicketDeliveryBatchInsert = {
   cancelled_at?: string | null;
   source_manifest_sha256?: string | null;
   results_imported_at?: string | null;
+  purpose_reason?: string | null;
   updated_at?: string;
 }
 
 export type GraduationTicketDeliveryBatchUpdate =
   Partial<GraduationTicketDeliveryBatchInsert>;
+
+/**
+ * CHECKIN-10A: a ticket delivered to a graduate outside this system. It is
+ * never a send attempt and never claims the application sent an email.
+ */
+export type GraduationTicketExternalDeliveryRow = {
+  id: string;
+  event_id: string;
+  registration_id: string;
+  ticket_id: string | null;
+  document_reference: string;
+  previous_send_date: string;
+  channel: string;
+  note: string;
+  recorded_by: string | null;
+  recorded_at: string;
+  created_at: string;
+}
+
+export type GraduationTicketExternalDeliveryInsert = {
+  id?: string;
+  event_id: string;
+  registration_id: string;
+  ticket_id?: string | null;
+  document_reference?: string;
+  previous_send_date: string;
+  channel: string;
+  note?: string;
+  recorded_by?: string | null;
+  recorded_at?: string;
+  created_at?: string;
+}
+
+export type GraduationTicketExternalDeliveryUpdate =
+  Partial<GraduationTicketExternalDeliveryInsert>;
 
 export type GraduationTicketDeliveryRow = {
   id: string;
@@ -1202,6 +1240,12 @@ export type Database = {
         Row: GraduationTicketDeliveryResultImportRow;
         Insert: GraduationTicketDeliveryResultImportInsert;
         Update: GraduationTicketDeliveryResultImportUpdate;
+        Relationships: [];
+      };
+      graduation_ticket_external_deliveries: {
+        Row: GraduationTicketExternalDeliveryRow;
+        Insert: GraduationTicketExternalDeliveryInsert;
+        Update: GraduationTicketExternalDeliveryUpdate;
         Relationships: [];
       };
       graduation_ticket_delivery_result_import_rows: {

@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 
 import { guardFailureResponse } from "@/features/auth/errors";
 import { requireAdministrator } from "@/features/auth/guards";
+import { resolveModeGate } from "@/features/distribution/deployment";
 import { requireDistributionSecret } from "@/features/distribution/secret";
 import { createDeliveryBatchSchema } from "@/features/distribution/schemas";
 import { prepareDeliveryBatch } from "@/features/distribution/service";
@@ -57,6 +58,28 @@ export async function POST(request: Request): Promise<NextResponse> {
       );
     }
 
+    // CHECKIN-10A: production preparation exists only on the production
+    // deployment with the production event active. Local development and
+    // Vercel Preview are refused here, before anything is prepared.
+    const gate = await resolveModeGate(parsed.data.mode);
+    if (!gate.allowed) {
+      return structuredError(403, gate.code, gate.message);
+    }
+
+    // A resend or replacement batch must carry an administrator reason so the
+    // attempt stays auditable and a replacement is never silent.
+    if (
+      (parsed.data.purpose === "resend" ||
+        parsed.data.purpose === "replacement") &&
+      parsed.data.purposeReason.trim().length === 0
+    ) {
+      return structuredError(
+        422,
+        "reason_required",
+        "A resend or replacement batch requires a recorded reason."
+      );
+    }
+
     let secret: string;
     try {
       secret = requireDistributionSecret();
@@ -76,6 +99,7 @@ export async function POST(request: Request): Promise<NextResponse> {
       documentBatchId: parsed.data.documentBatchId,
       mode: parsed.data.mode,
       purpose: parsed.data.purpose,
+      purposeReason: parsed.data.purposeReason,
       allowTestRecipientOverride: parsed.data.allowTestRecipientOverride,
       secret,
     });

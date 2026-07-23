@@ -4,7 +4,11 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useMemo, useState } from "react";
 
-import type { DeliveryMode, DeliveryPurpose } from "../constants";
+import {
+  RESEND_VS_REPLACEMENT_TEXT,
+  type DeliveryMode,
+  type DeliveryPurpose,
+} from "../constants";
 import type {
   BatchRowView,
   ResultImportRowView,
@@ -23,6 +27,9 @@ interface Props {
   batches: BatchRowView[];
   resultImports: ResultImportRowView[];
   distributionConfigured: boolean;
+  /** CHECKIN-10A deployment + event gate. False on development and preview. */
+  productionAllowed: boolean;
+  productionBlockedReason: string | null;
 }
 
 const PURPOSES: DeliveryPurpose[] = [
@@ -65,6 +72,8 @@ export function DistributionWorkspace({
   batches,
   resultImports,
   distributionConfigured,
+  productionAllowed,
+  productionBlockedReason,
 }: Props) {
   const router = useRouter();
   const [documentBatchId, setDocumentBatchId] = useState(
@@ -72,10 +81,18 @@ export function DistributionWorkspace({
   );
   const [mode, setMode] = useState<DeliveryMode>("test");
   const [purpose, setPurpose] = useState<DeliveryPurpose>("initial");
+  const [purposeReason, setPurposeReason] = useState("");
   const [override, setOverride] = useState(false);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [tab, setTab] = useState<TabKey>("all");
+
+  // A resend or replacement batch must carry a reason; the server enforces
+  // this too, so a crafted request cannot skip it.
+  const reasonRequired = purpose === "resend" || purpose === "replacement";
+  // Production preparation is refused outright on development and preview.
+  // The button is disabled here and the server refuses independently.
+  const productionBlocked = mode === "production" && !productionAllowed;
 
   const visibleBatches = useMemo(() => {
     if (tab === "test") return batches.filter((b) => b.mode === "test");
@@ -94,6 +111,7 @@ export function DistributionWorkspace({
           documentBatchId,
           mode,
           purpose,
+          purposeReason,
           allowTestRecipientOverride: override,
         }),
       });
@@ -148,6 +166,16 @@ export function DistributionWorkspace({
           deliveries; it never sends email. A test batch is never converted into
           a production batch.
         </p>
+        <p className="mt-2 text-sm text-navy/70">{RESEND_VS_REPLACEMENT_TEXT}</p>
+        {!productionAllowed && (
+          <p
+            className="mt-3 rounded-md border border-amber-400 bg-amber-50 p-3 text-sm text-navy"
+            data-testid="production-blocked-notice"
+          >
+            {productionBlockedReason ??
+              "Production distribution is not available on this deployment."}
+          </p>
+        )}
         {!distributionConfigured && (
           <p className="mt-3 rounded-md border border-gold bg-gold/10 p-3 text-sm text-navy">
             TICKET_DISTRIBUTION_SECRET is not configured. Preparation is disabled
@@ -182,7 +210,10 @@ export function DistributionWorkspace({
                 onChange={(event) => setMode(event.target.value as DeliveryMode)}
               >
                 <option value="test">test</option>
-                <option value="production">production</option>
+                <option value="production" disabled={!productionAllowed}>
+                  production
+                  {productionAllowed ? "" : " (unavailable on this deployment)"}
+                </option>
               </select>
             </label>
             <label className="text-sm font-semibold text-navy">
@@ -209,11 +240,30 @@ export function DistributionWorkspace({
               />
               Allow internal test-recipient override
             </label>
+            {reasonRequired && (
+              <label className="text-sm font-semibold text-navy sm:col-span-2">
+                Reason for this {purpose} batch
+                <input
+                  type="text"
+                  maxLength={500}
+                  className="mt-1 w-full rounded-md border border-navy/20 p-2 text-sm"
+                  value={purposeReason}
+                  onChange={(event) => setPurposeReason(event.target.value)}
+                  placeholder="Recorded in the audit history. Required."
+                />
+              </label>
+            )}
           </div>
         )}
         <button
           type="button"
-          disabled={busy || !distributionConfigured || sourceBatches.length === 0}
+          disabled={
+            busy ||
+            !distributionConfigured ||
+            sourceBatches.length === 0 ||
+            productionBlocked ||
+            (reasonRequired && purposeReason.trim().length === 0)
+          }
           onClick={prepare}
           className="mt-4 rounded-md bg-navy px-4 py-2 text-sm font-semibold text-white disabled:opacity-50"
         >
