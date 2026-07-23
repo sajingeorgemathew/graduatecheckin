@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 
 import { requireAdministratorPage } from "@/features/auth/guards";
+import { ArchivedAutomationBanner } from "@/features/distribution/components/archived-banner";
 import { loadImportDetail } from "@/features/distribution/read-service";
 
 /**
@@ -35,6 +36,7 @@ export default async function ImportDetailPage({
 
   return (
     <main className="mx-auto w-full max-w-5xl flex-1 px-6 py-8 sm:px-10">
+      <ArchivedAutomationBanner />
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-navy">{record.fileName}</h1>

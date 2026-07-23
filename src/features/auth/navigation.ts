@@ -17,6 +17,9 @@ export interface NavLink {
 /** Attendance dashboard destination for supervisors and administrators. */
 export const ATTENDANCE_DASHBOARD_PATH = "/staff/attendance";
 
+/** The active ticket-sending workflow for administrators. */
+export const MANUAL_DELIVERY_PATH = "/admin/tickets/manual-delivery";
+
 /**
  * Builds the ordered navigation for a signed-in staff member. Every role
  * sees the staff home and the scanner. Supervisors and administrators also
@@ -35,11 +38,19 @@ export function navLinksFor(session: StaffSession): NavLink[] {
     });
   }
   if (canAccessAdmin(session.role)) {
+    // The order mirrors the production workflow: import the RSVP workbook,
+    // generate tickets, then send them by hand from the delivery desk. The
+    // archived Google Apps Script distribution pages are deliberately
+    // absent; they remain reachable by direct link for audit only.
     links.push(
       { href: "/admin", label: "Admin" },
-      { href: "/admin/imports", label: "Imports" },
-      { href: "/admin/staff", label: "Staff Accounts" },
-      { href: "/admin/tickets", label: "Ticket Management" }
+      { href: "/admin/production-import", label: "Production Import" },
+      { href: "/admin/tickets", label: "Ticket Management" },
+      {
+        href: MANUAL_DELIVERY_PATH,
+        label: "Manual Delivery",
+      },
+      { href: "/admin/staff", label: "Staff Accounts" }
     );
   }
   return links;

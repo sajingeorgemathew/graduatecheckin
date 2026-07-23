@@ -7,6 +7,7 @@ import { describe, expect, it } from "vitest";
 import {
   ATTENDANCE_DASHBOARD_PATH,
   isNavLinkActive,
+  MANUAL_DELIVERY_PATH,
   navLinksFor,
 } from "@/features/auth/navigation";
 import { fictionalSession } from "./helpers";
@@ -51,15 +52,38 @@ describe("staff navigation link set", () => {
     expect(adminLabels).toEqual(
       expect.arrayContaining([
         "Admin",
-        "Imports",
+        "Production Import",
+        "Manual Delivery",
         "Staff Accounts",
         "Ticket Management",
       ])
     );
-    for (const label of ["Imports", "Staff Accounts", "Ticket Management"]) {
+    for (const label of [
+      "Production Import",
+      "Manual Delivery",
+      "Staff Accounts",
+      "Ticket Management",
+    ]) {
       expect(labels("supervisor")).not.toContain(label);
       expect(labels("scanner")).not.toContain(label);
     }
+  });
+
+  it("keeps the archived Apps Script distribution out of the navigation", () => {
+    // CHECKIN-10B retired the Google Apps Script workflow from the required
+    // production path. Its pages still open by direct link for audit, but
+    // they are no longer an entry point an administrator can wander into.
+    for (const link of navLinksFor(fictionalSession("administrator"))) {
+      expect(link.href).not.toContain("/distribution");
+      expect(link.label.toLowerCase()).not.toContain("distribution");
+    }
+  });
+
+  it("points administrators at the Manual Delivery Desk", () => {
+    const links = navLinksFor(fictionalSession("administrator"));
+    const delivery = links.find((link) => link.label === "Manual Delivery");
+    expect(delivery?.href).toBe(MANUAL_DELIVERY_PATH);
+    expect(delivery?.href).toBe("/admin/tickets/manual-delivery");
   });
 });
 
