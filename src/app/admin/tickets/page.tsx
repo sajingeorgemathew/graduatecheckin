@@ -82,10 +82,10 @@ export default async function TicketManagementPage({ searchParams }: PageProps) 
             PDF ticket documents
           </Link>
           <Link
-            href="/admin/tickets/distribution"
+            href="/admin/tickets/manual-delivery"
             className="inline-block rounded-md border border-navy/20 bg-white px-4 py-2 text-center text-sm font-semibold text-navy shadow-sm hover:border-navy/40"
           >
-            Ticket distribution
+            Manual Delivery Desk
           </Link>
           <Link
             href="/admin/tickets/generate"

@@ -1,6 +1,7 @@
 import Link from "next/link";
 
 import { requireAdministratorPage } from "@/features/auth/guards";
+import { ArchivedAutomationBanner } from "@/features/distribution/components/archived-banner";
 import { ImportResultsWorkspace } from "@/features/distribution/components/import-results-workspace";
 import { loadDistributionAdminData } from "@/features/distribution/read-service";
 
@@ -17,6 +18,7 @@ export default async function ImportResultsPage() {
 
   return (
     <main className="mx-auto w-full max-w-5xl flex-1 px-6 py-8 sm:px-10">
+      <ArchivedAutomationBanner />
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold text-navy">Import Send Results</h1>
         <Link

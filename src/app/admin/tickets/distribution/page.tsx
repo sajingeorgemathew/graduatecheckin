@@ -1,6 +1,7 @@
 import Link from "next/link";
 
 import { requireAdministratorPage } from "@/features/auth/guards";
+import { ArchivedAutomationBanner } from "@/features/distribution/components/archived-banner";
 import { DistributionWorkspace } from "@/features/distribution/components/distribution-workspace";
 import { loadDistributionAdminData } from "@/features/distribution/read-service";
 
@@ -43,6 +44,7 @@ export default async function TicketDistributionPage() {
 
   return (
     <main className="mx-auto w-full max-w-6xl flex-1 px-6 py-8 sm:px-10">
+      <ArchivedAutomationBanner />
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="text-2xl font-bold text-navy">
