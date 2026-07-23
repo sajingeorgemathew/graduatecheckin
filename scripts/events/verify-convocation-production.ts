@@ -18,6 +18,10 @@ import {
   PRODUCTION_EVENT_CODE,
   PRODUCTION_EVENT_DETAILS,
 } from "./convocation-production-plan";
+import {
+  describeTimestampMismatch,
+  matchTimestampInstant,
+} from "./timestamp-match";
 
 async function countByEvent(
   db: AdminClient,
@@ -97,9 +101,23 @@ async function main(): Promise<void> {
       fail(`${label} does not match the approved value.`);
     }
   };
+  // Timestamps are compared by parsed instant: PostgreSQL returns
+  // "2026-07-26 16:00:00+00" where the approved constant is
+  // "2026-07-26T16:00:00.000Z". Null, malformed and genuinely different
+  // instants still fail.
+  const instantMismatch = (
+    label: string,
+    actual: unknown,
+    expected: unknown
+  ): void => {
+    const result = matchTimestampInstant(actual, expected);
+    if (!result.equal) {
+      fail(describeTimestampMismatch(label, result.reason));
+    }
+  };
   mismatch("Title", event.event_name, details.eventName);
-  mismatch("Start time", event.starts_at, details.startsAt);
-  mismatch("End time", event.ends_at, details.endsAt);
+  instantMismatch("Start time", event.starts_at, details.startsAt);
+  instantMismatch("End time", event.ends_at, details.endsAt);
   mismatch("Timezone", event.timezone, details.timezone);
   mismatch("Venue name", event.venue_name, details.venueName);
   mismatch("Venue address", event.venue_address, details.venueAddress);
