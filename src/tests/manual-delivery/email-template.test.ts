@@ -125,6 +125,15 @@ describe("personalization", () => {
     expect(email.text).toContain("45 minutes before");
   });
 
+  it("keeps the attachment instruction alongside the guidance", () => {
+    const email = renderTicketEmail(baseInput);
+    expect(email.attachmentInstruction).toContain(
+      "TAE-Convocation-2026-TAE-4KJ7-92BX-V1.pdf"
+    );
+    expect(email.html).toContain("attached to this email as a PDF");
+    expect(email.text).toContain("attached to this email as a PDF");
+  });
+
   it("lists the approved party, naming the guests it knows", () => {
     const lines = describeEmailParty(baseInput.party);
     expect(lines).toContain("Amara Osei (graduate)");
@@ -148,6 +157,88 @@ describe("personalization", () => {
     expect(buildSubject("initial", "Amara Osei")).toContain("Your Toronto");
     expect(buildSubject("resend", "Amara Osei")).toContain("Resending");
     expect(buildSubject("replacement", "Amara Osei")).toContain("Replacement");
+  });
+});
+
+describe("party ticket and arrival guidance", () => {
+  /** Collapses whitespace so an assertion never depends on HTML formatting. */
+  function normalize(value: string): string {
+    return value.replace(/\s+/g, " ");
+  }
+
+  it("states that one ticket covers the whole registered party", () => {
+    const html = normalize(renderTicketEmail(baseInput).html);
+    expect(html).toContain("One ticket for your registered party");
+    expect(html).toContain(
+      "This single ticket covers you and everyone included in your confirmed registration."
+    );
+  });
+
+  it("states that guests and children need no separate ticket", () => {
+    const html = normalize(renderTicketEmail(baseInput).html);
+    expect(html).toContain(
+      "Separate tickets are not required for your guests or children."
+    );
+  });
+
+  it("supports party members arriving at different times", () => {
+    const html = normalize(renderTicketEmail(baseInput).html);
+    expect(html).toContain("Arriving at different times");
+    expect(html).toContain(
+      "Members of your registered party may arrive at different times."
+    );
+  });
+
+  it("tells the graduate to present the same ticket for later arrivals", () => {
+    const html = normalize(renderTicketEmail(baseInput).html);
+    expect(html).toContain(
+      "Present the same ticket whenever another registered member of your party arrives."
+    );
+  });
+
+  it("states the ticket stays usable until the whole party checks in", () => {
+    const html = normalize(renderTicketEmail(baseInput).html);
+    expect(html).toContain(
+      "the ticket will remain usable until your complete registered party has checked in"
+    );
+  });
+
+  it("describes QR privacy accurately", () => {
+    const html = normalize(renderTicketEmail(baseInput).html);
+    expect(html).toContain(
+      "The QR code does not encode your name, email address, phone number, guest details or payment information."
+    );
+    expect(html).toContain(
+      "It is not a public website link and can only be validated through the Toronto Academy check-in system for this convocation."
+    );
+  });
+
+  it("repeats the same guidance in the plain-text version", () => {
+    const text = normalize(renderTicketEmail(baseInput).text);
+    expect(text).toContain("ONE TICKET FOR YOUR REGISTERED PARTY");
+    expect(text).toContain(
+      "Separate tickets are not required for your guests or children."
+    );
+    expect(text).toContain("ARRIVING AT DIFFERENT TIMES");
+    expect(text).toContain(
+      "Present the same ticket whenever another registered member of your party arrives."
+    );
+    expect(text).toContain(
+      "the ticket will remain usable until your complete registered party has checked in"
+    );
+    expect(text).toContain("QR CODE PRIVACY");
+    expect(text).toContain(
+      "It is not a public website link and can only be validated through the Toronto Academy check-in system for this convocation."
+    );
+  });
+
+  it("no longer claims the QR is scanned once and admits the party at once", () => {
+    const email = renderTicketEmail(baseInput);
+    for (const copy of [normalize(email.html), normalize(email.text)]) {
+      expect(copy).not.toContain("scanned once");
+      expect(copy).not.toContain("admits your whole registered party");
+      expect(copy).not.toContain("registered party together");
+    }
   });
 });
 
