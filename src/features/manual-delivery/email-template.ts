@@ -21,8 +21,8 @@
  */
 
 import {
-  ARRIVAL_GUIDANCE,
   ATTACHMENT_INSTRUCTION_PREFIX,
+  EMAIL_GUIDANCE_SECTIONS,
   EMAIL_SUBJECT_PREFIX,
   NON_PRODUCTION_HOSTS,
   REPLACEMENT_SUBJECT_PREFIX,
@@ -209,6 +209,14 @@ export function renderTicketEmail(
     )
     .join("");
 
+  // One compact cream box carries every guidance section, so the HTML and
+  // the plain text can never drift apart.
+  const guidanceHtml = EMAIL_GUIDANCE_SECTIONS.map(
+    (section, index) =>
+      `<p style="margin:${index === 0 ? "0" : "12px"} 0 2px 0;font:700 13px/1.4 Arial,sans-serif;color:${NAVY};">${escapeHtml(section.heading)}</p>` +
+      `<p style="margin:0;font:400 14px/1.5 Arial,sans-serif;color:#20262f;">${escapeHtml(section.body)}</p>`
+  ).join("");
+
   const html = `<div style="margin:0;padding:0;background:#f6f3ec;">
 <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="background:#f6f3ec;">
 <tr><td align="center" style="padding:24px 12px;">
@@ -258,7 +266,13 @@ export function renderTicketEmail(
       <p style="margin:0 0 6px 0;font:700 14px/1.4 Arial,sans-serif;color:${NAVY};">Your registered party</p>
       <ul style="margin:0 0 18px 0;padding:0 0 0 20px;font:400 14px/1.6 Arial,sans-serif;">${partyHtml}</ul>
 
-      <p style="margin:0 0 18px 0;">${escapeHtml(ARRIVAL_GUIDANCE)}</p>
+      <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="border-collapse:collapse;margin:0 0 18px 0;">
+        <tr>
+          <td style="padding:14px 16px;background:#f6f3ec;border:1px solid #e3ddd0;border-left:4px solid ${GOLD};">
+            ${guidanceHtml}
+          </td>
+        </tr>
+      </table>
 
       <p style="margin:0 0 6px 0;">Warm regards,</p>
       <p style="margin:0;font-weight:700;color:${NAVY};">Toronto Academy of Education</p>
@@ -283,8 +297,11 @@ export function renderTicketEmail(
     "Your registered party:",
     ...partyLines.map((line) => `  - ${line}`),
     "",
-    ARRIVAL_GUIDANCE,
-    "",
+    ...EMAIL_GUIDANCE_SECTIONS.flatMap((section) => [
+      section.heading.toUpperCase(),
+      section.body,
+      "",
+    ]),
     "Warm regards,",
     "Toronto Academy of Education",
   ].join("\n");

@@ -73,11 +73,53 @@ export const MANUAL_DELIVERY_FILTER_LABELS: Record<
 export const MIN_REASON_LENGTH = 5;
 export const MAX_REASON_LENGTH = 500;
 
-/** Arrival guidance shown in every ticket email. */
-export const ARRIVAL_GUIDANCE =
-  "Please arrive at least 45 minutes before the ceremony begins so your " +
-  "party can be checked in without rushing. Bring this ticket on your " +
-  "phone or printed; the QR code is scanned once at the door and admits " +
-  "your whole registered party together.";
+/**
+ * Guidance shown in every ticket email.
+ *
+ * The wording must match how check-in actually works: one active ticket
+ * covers one registration and its whole approved party, and the same
+ * ticket is presented again when party members arrive later. Any claim
+ * that the ticket is scanned once and admits the party together would be
+ * wrong, so the sections below are the single source for both the HTML
+ * and the plain-text rendering.
+ */
+export interface EmailGuidanceSection {
+  heading: string;
+  body: string;
+}
+
+export const EMAIL_GUIDANCE_SECTIONS: readonly EmailGuidanceSection[] = [
+  {
+    heading: "One ticket for your registered party",
+    body:
+      "This single ticket covers you and everyone included in your " +
+      "confirmed registration. Separate tickets are not required for your " +
+      "guests or children.",
+  },
+  {
+    heading: "Arriving at different times",
+    body:
+      "Members of your registered party may arrive at different times. " +
+      "Present the same ticket whenever another registered member of your " +
+      "party arrives. Our check-in team will record only the people " +
+      "arriving at that time, and the ticket will remain usable until your " +
+      "complete registered party has checked in.",
+  },
+  {
+    heading: "QR code privacy",
+    body:
+      "The QR code does not encode your name, email address, phone number, " +
+      "guest details or payment information. It is not a public website " +
+      "link and can only be validated through the Toronto Academy check-in " +
+      "system for this convocation.",
+  },
+  {
+    heading: "Arrival reminder",
+    body:
+      "Please arrive at least 45 minutes before the ceremony begins. You " +
+      "may present the attached ticket on your phone or bring a printed " +
+      "copy.",
+  },
+] as const;
 
 export const ATTACHMENT_INSTRUCTION_PREFIX = "Attach this file:";
