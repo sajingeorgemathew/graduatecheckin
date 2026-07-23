@@ -18,10 +18,12 @@ import {
 } from "@/features/distribution/retirement";
 
 function readSrc(relative: string): string {
+  // Normalised so a CRLF checkout on Windows still matches the multi-line
+  // snippets asserted below.
   return readFileSync(
     fileURLToPath(new URL(`../../${relative}`, import.meta.url)),
     "utf8"
-  );
+  ).replace(/\r\n/g, "\n");
 }
 
 function repoPath(relative: string): string {

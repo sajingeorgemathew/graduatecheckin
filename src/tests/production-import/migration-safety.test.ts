@@ -34,13 +34,31 @@ beforeAll(() => {
   );
   expect(files).toHaveLength(1);
   fileName = files[0];
-  migration = readFileSync(join(migrationsDir, fileName), "utf8").toLowerCase();
+  // Normalised so a CRLF checkout on Windows still matches the multi-line
+  // constraint and revoke snippets asserted below.
+  migration = readFileSync(join(migrationsDir, fileName), "utf8")
+    .replace(/\r\n/g, "\n")
+    .toLowerCase();
 });
+
+/**
+ * Migrations added after CHECKIN-10B. This migration must still sort after
+ * everything that preceded it, but later work is expected to sort after
+ * this one, so those files are excluded from the ordering check.
+ */
+const LATER_MIGRATIONS = [
+  "_fix_production_import_payment_status_enum.sql",
+] as const;
 
 describe("manual production workflow migration", () => {
   it("is timestamped after every previously deployed migration", () => {
     const others = readdirSync(migrationsDir)
-      .filter((file) => file !== fileName && file.endsWith(".sql"))
+      .filter(
+        (file) =>
+          file !== fileName &&
+          file.endsWith(".sql") &&
+          !LATER_MIGRATIONS.some((later) => file.endsWith(later))
+      )
       .map((file) => file.slice(0, 14));
     const mine = fileName.slice(0, 14);
     for (const other of others) {
