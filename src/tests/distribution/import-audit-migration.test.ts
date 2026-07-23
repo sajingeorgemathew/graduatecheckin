@@ -33,7 +33,11 @@ beforeAll(() => {
  * everything that preceded it, but later work is expected to sort after
  * this one, so those files are excluded from the ordering check.
  */
-const LATER_MIGRATIONS = ["_create_manual_production_workflow.sql"] as const;
+const LATER_MIGRATIONS = [
+  "_create_production_cutover_controls.sql",
+  "_create_manual_production_workflow.sql",
+  "_fix_production_import_payment_status_enum.sql",
+] as const;
 
 describe("result-import-row audit migration safety", () => {
   it("is timestamped after every previously deployed migration", () => {
