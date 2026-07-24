@@ -7,6 +7,7 @@
  * only sources of truth.
  */
 
+import type { Json } from "@/types/database";
 import type { ManualDeliveryFilter } from "./constants";
 import type {
   DeliveryState,
@@ -17,6 +18,8 @@ import type {
 export interface DeliveryStateInput {
   hasTicket: boolean;
   hasPdf: boolean;
+  /** The current PDF no longer matches the live party. */
+  pdfOutdated: boolean;
   hasEmail: boolean;
   needsReconciliation: boolean;
   sendCount: number;
@@ -28,7 +31,8 @@ export interface DeliveryStateInput {
  * A recorded send always wins, because it is a statement of fact made by a
  * human: a graduate who has been sent their ticket is never shown as
  * "ready to send" again just because a newer PDF was generated. Everything
- * else reports the first thing blocking a send.
+ * else reports the first thing blocking a send. An outdated PDF is never
+ * "ready to send": the registration changed after it was generated.
  */
 export function resolveDeliveryState(
   input: DeliveryStateInput
@@ -51,7 +55,42 @@ export function resolveDeliveryState(
   if (!input.hasPdf) {
     return "pdf_missing";
   }
+  if (input.pdfOutdated) {
+    return "pdf_outdated";
+  }
   return "ready_to_send";
+}
+
+/**
+ * True when the live party differs from the party captured on a recorded
+ * send. The manual-send ledger stores only party counts (not names), so this
+ * compares exactly those fields. Name-only changes are surfaced by the PDF
+ * staleness check instead, which does include names. A missing or malformed
+ * snapshot reads as changed.
+ */
+export function partyChangedSinceSendSnapshot(
+  snapshot: Json | null,
+  live: {
+    adultGuestCount: number;
+    children04Count: number;
+    children510Count: number;
+    totalPartyCount: number;
+  }
+): boolean {
+  if (
+    snapshot === null ||
+    typeof snapshot !== "object" ||
+    Array.isArray(snapshot)
+  ) {
+    return true;
+  }
+  const record = snapshot as { [key: string]: Json | undefined };
+  return (
+    record.adult_guest_count !== live.adultGuestCount ||
+    record.child_0_4_count !== live.children04Count ||
+    record.child_5_10_count !== live.children510Count ||
+    record.total_party_count !== live.totalPartyCount
+  );
 }
 
 export function summarizeDeliveryRows(
@@ -62,6 +101,7 @@ export function summarizeDeliveryRows(
     readyToSend: 0,
     ticketMissing: 0,
     pdfMissing: 0,
+    pdfOutdated: 0,
     manuallySent: 0,
     resent: 0,
     emailMissing: 0,
@@ -80,6 +120,9 @@ export function summarizeDeliveryRows(
         break;
       case "pdf_missing":
         counts.pdfMissing += 1;
+        break;
+      case "pdf_outdated":
+        counts.pdfOutdated += 1;
         break;
       case "manually_sent":
         counts.manuallySent += 1;

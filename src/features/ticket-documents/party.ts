@@ -18,6 +18,7 @@
  * empty name line.
  */
 
+import type { Json } from "@/types/database";
 import type { RegisteredParty } from "./types";
 
 export interface RegistrationPartyInput {
@@ -80,6 +81,41 @@ export function buildRegisteredParty(
  */
 export function hasUnnamedAdultGuests(party: RegisteredParty): boolean {
   return party.adultGuestNames.length < party.adultGuestCount;
+}
+
+/**
+ * True when a stored party snapshot (as written by partySnapshot, or by the
+ * manual-send ledger and the party-adjustment audit, which use the same field
+ * names) describes exactly the live registered party.
+ *
+ * This is the single comparison used for both stale-PDF detection and the
+ * "party updated since last send" check, so the two can never disagree. A
+ * null or malformed snapshot never matches, so a missing snapshot always reads
+ * as changed. Guest names participate in their displayed order.
+ */
+export function partySnapshotMatchesParty(
+  storedSnapshot: Json | null,
+  party: RegisteredParty
+): boolean {
+  if (
+    storedSnapshot === null ||
+    typeof storedSnapshot !== "object" ||
+    Array.isArray(storedSnapshot)
+  ) {
+    return false;
+  }
+  const snapshot = storedSnapshot as { [key: string]: Json | undefined };
+  const storedNames = Array.isArray(snapshot.adult_guest_names)
+    ? snapshot.adult_guest_names
+    : [];
+  return (
+    snapshot.graduate_name === party.graduateName &&
+    snapshot.adult_guest_count === party.adultGuestCount &&
+    snapshot.child_0_4_count === party.children04Count &&
+    snapshot.child_5_10_count === party.children510Count &&
+    snapshot.total_party_count === party.totalPartyCount &&
+    JSON.stringify(storedNames) === JSON.stringify(party.adultGuestNames)
+  );
 }
 
 /** Human-readable summary used in list views and batch snapshots. */

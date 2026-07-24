@@ -5,11 +5,6 @@
  */
 
 import { z } from "zod";
-import {
-  MAX_ADULT_GUESTS,
-  MAX_CHILDREN_PER_GROUP,
-  MAX_COMBINED_CHILDREN,
-} from "@/features/production-import/constants";
 
 /** How a manually added graduate reached the administrator. */
 export const MANUAL_REGISTRATION_SOURCES = [
@@ -51,13 +46,15 @@ export const manualRegistrationSchema = z
     studentId: optionalText(60),
     namePronunciation: optionalText(300),
     gownSize: optionalText(60),
-    adultGuestNames: z
-      .array(z.string().trim().min(1).max(200))
-      .max(MAX_ADULT_GUESTS)
-      .default([]),
-    adultGuestCount: z.number().int().min(0).max(MAX_ADULT_GUESTS),
-    children04: z.number().int().min(0).max(MAX_CHILDREN_PER_GROUP),
-    children510: z.number().int().min(0).max(MAX_CHILDREN_PER_GROUP),
+    // No business maximum: a manually added graduate may register any
+    // non-negative whole number of guests and children. The names count is
+    // still capped by the adult guest count below, and duplicate detection is
+    // unchanged. Production Excel import reconciliation keeps its own 0-to-2
+    // rules elsewhere.
+    adultGuestNames: z.array(z.string().trim().min(1).max(200)).default([]),
+    adultGuestCount: z.number().int().min(0),
+    children04: z.number().int().min(0),
+    children510: z.number().int().min(0),
     paymentNote: optionalText(500),
     source: z.enum(MANUAL_REGISTRATION_SOURCES),
     internalNote: optionalText(1000),
@@ -69,13 +66,6 @@ export const manualRegistrationSchema = z
     overrideReason: optionalText(500),
     acknowledgeDuplicates: z.boolean().default(false),
   })
-  .refine(
-    (value) => value.children04 + value.children510 <= MAX_COMBINED_CHILDREN,
-    {
-      message: "At most two children in total may be registered.",
-      path: ["children510"],
-    }
-  )
   .refine(
     (value) => value.adultGuestNames.length <= value.adultGuestCount,
     {

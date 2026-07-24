@@ -408,7 +408,7 @@ describe("party snapshot and email at the maximum party", () => {
 // ---------------------------------------------------------------------
 
 describe("manually added graduates", () => {
-  it("accepts the valid maximum of two adult guests and two children", () => {
+  it("accepts two adult guests together with two children", () => {
     for (const children of [
       { children04: 2, children510: 0 },
       { children04: 1, children510: 1 },
@@ -433,16 +433,24 @@ describe("manually added graduates", () => {
     }
   });
 
-  it("rejects a third adult guest and a third child", () => {
+  it("imposes no business maximum: a third adult guest and third child are accepted", () => {
+    // HOTFIX-PARTY-01 removed the 0-to-2 business limit from the manual-add
+    // form and schema. The production Excel import reconciliation (above)
+    // keeps its own 0-to-2 rules and is deliberately unchanged.
     expect(
       manualRegistrationSchema.safeParse(
         manualAdd({ adultGuestCount: 3, children04: 0, children510: 0 })
       ).success
-    ).toBe(false);
+    ).toBe(true);
     expect(
       manualRegistrationSchema.safeParse(
         manualAdd({ adultGuestCount: 0, children04: 2, children510: 1 })
       ).success
-    ).toBe(false);
+    ).toBe(true);
+    expect(
+      manualRegistrationSchema.safeParse(
+        manualAdd({ adultGuestCount: 6, children04: 4, children510: 3 })
+      ).success
+    ).toBe(true);
   });
 });

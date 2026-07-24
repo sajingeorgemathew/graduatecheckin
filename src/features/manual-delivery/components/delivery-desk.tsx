@@ -25,6 +25,7 @@ const STATE_LABELS: Record<DeliveryState, string> = {
   ready_to_send: "Ready to send",
   ticket_missing: "Ticket missing",
   pdf_missing: "PDF missing",
+  pdf_outdated: "PDF outdated",
   email_missing: "Email missing",
   manually_sent: "Manually sent",
   resent: "Resent",
@@ -35,6 +36,7 @@ const STATE_STYLES: Record<DeliveryState, string> = {
   ready_to_send: "bg-navy text-gold-light",
   ticket_missing: "bg-red-100 text-red-800",
   pdf_missing: "bg-red-100 text-red-800",
+  pdf_outdated: "bg-gold text-navy",
   email_missing: "bg-red-100 text-red-800",
   manually_sent: "bg-green-100 text-green-900",
   resent: "bg-green-100 text-green-900",
@@ -88,6 +90,13 @@ function DeskRow({ row }: { row: ManualDeliveryRow }) {
         {row.sendCount > 0 && (
           <div className="mt-1 text-[11px] text-navy/60">
             {row.sendCount} recorded send{row.sendCount === 1 ? "" : "s"}
+          </div>
+        )}
+        {row.partyUpdatedSinceLastSend && (
+          <div className="mt-1 text-[11px] font-semibold text-navy">
+            {row.resendRecommended
+              ? "Updated PDF ready - resend recommended"
+              : "Party updated since last send"}
           </div>
         )}
       </td>
@@ -166,7 +175,7 @@ export function DeliveryDesk({ data }: { data: ManualDeliveryDeskData }) {
     ["Resent", summary.resent],
     ["Ticket missing", summary.ticketMissing],
     ["PDF missing", summary.pdfMissing],
-    ["Email missing", summary.emailMissing],
+    ["PDF outdated", summary.pdfOutdated],
     ["Checked in", summary.checkedIn],
   ] as const;
 

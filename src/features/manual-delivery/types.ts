@@ -17,10 +17,20 @@ export type DeliveryState =
   | "ready_to_send"
   | "ticket_missing"
   | "pdf_missing"
+  | "pdf_outdated"
   | "email_missing"
   | "manually_sent"
   | "resent"
   | "needs_reconciliation";
+
+/**
+ * Whether the graduate's current PDF matches the live registered party.
+ *  - missing:  no current PDF exists.
+ *  - current:  the current PDF matches the live party and is safe to send.
+ *  - outdated: the registration changed after the current PDF was generated,
+ *              so the PDF must not be sent until a new one is generated.
+ */
+export type PdfStatus = "missing" | "current" | "outdated";
 
 /** One graduate as the desk lists them. */
 export interface ManualDeliveryRow {
@@ -38,11 +48,28 @@ export interface ManualDeliveryRow {
   documentId: string | null;
   pdfFileName: string | null;
   documentVersion: number | null;
+  /** Whether the current PDF matches the live party. */
+  pdfStatus: PdfStatus;
+  /**
+   * True when the latest recorded send carries an older party than the live
+   * registration, so the graduate should be resent the updated details.
+   */
+  partyUpdatedSinceLastSend: boolean;
+  /**
+   * True when the party has changed since the last send and the updated PDF
+   * is already current, so a resend can proceed immediately.
+   */
+  resendRecommended: boolean;
   state: DeliveryState;
   sendCount: number;
   lastSentAt: string | null;
   lastSendKind: ManualDeliveryKindEnum | null;
   checkedIn: boolean;
+  /**
+   * The registration updated_at, used as the optimistic-concurrency baseline
+   * when the administrator edits the party.
+   */
+  registrationUpdatedAt: string;
   /** Source order IDs behind this registration, for search and audit. */
   sourceOrderIds: string[];
 }
@@ -52,6 +79,7 @@ export interface ManualDeliverySummaryCounts {
   readyToSend: number;
   ticketMissing: number;
   pdfMissing: number;
+  pdfOutdated: number;
   manuallySent: number;
   resent: number;
   emailMissing: number;

@@ -37,6 +37,7 @@ const LATER_MIGRATIONS = [
   "_create_production_cutover_controls.sql",
   "_create_manual_production_workflow.sql",
   "_fix_production_import_payment_status_enum.sql",
+  "_create_party_adjustment_controls.sql",
 ] as const;
 
 describe("result-import-row audit migration safety", () => {

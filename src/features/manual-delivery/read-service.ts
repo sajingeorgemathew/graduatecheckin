@@ -21,7 +21,10 @@ import {
 } from "@/features/events/active-event";
 import { resolveActiveEvent } from "@/features/events/resolve-active-event";
 import { resolvePrimaryLogoAssetName } from "@/features/ticket-documents/assets";
-import { buildRegisteredParty } from "@/features/ticket-documents/party";
+import {
+  buildRegisteredParty,
+  partySnapshotMatchesParty,
+} from "@/features/ticket-documents/party";
 import { buildEventDetails } from "@/features/ticket-documents/presentation";
 import { getClientEnv } from "@/lib/env/client";
 import type {
@@ -40,6 +43,7 @@ import * as repo from "./repository";
 import {
   filterDeliveryRows,
   findNextUnsent,
+  partyChangedSinceSendSnapshot,
   resolveDeliveryState,
   searchDeliveryRows,
   summarizeDeliveryRows,
@@ -157,6 +161,26 @@ async function loadRows(eventId: string): Promise<ManualDeliveryRow[]> {
         ? []
         : [registration.source_registration_id]);
 
+    // Reuse the ticket-document snapshot comparison so the desk's stale-PDF
+    // detection can never disagree with the generator's own staleness check.
+    const pdfStatus =
+      document === null
+        ? "missing"
+        : partySnapshotMatchesParty(document.registered_party_snapshot, party)
+          ? "current"
+          : "outdated";
+
+    // The manual-send ledger stores a party snapshot; when the live party has
+    // moved on from the latest send, the graduate should be resent.
+    const partyUpdatedSinceLastSend =
+      latest !== null &&
+      partyChangedSinceSendSnapshot(latest.party_snapshot, {
+        adultGuestCount: party.adultGuestCount,
+        children04Count: party.children04Count,
+        children510Count: party.children510Count,
+        totalPartyCount: party.totalPartyCount,
+      });
+
     return {
       registrationId: registration.id,
       graduateName: registration.graduate_full_name,
@@ -172,9 +196,15 @@ async function loadRows(eventId: string): Promise<ManualDeliveryRow[]> {
       documentId: document?.id ?? null,
       pdfFileName: document?.file_name ?? null,
       documentVersion: document?.document_version ?? null,
+      pdfStatus,
+      partyUpdatedSinceLastSend,
+      // A resend is only recommended once the updated PDF is current: an
+      // outdated PDF must be regenerated first.
+      resendRecommended: partyUpdatedSinceLastSend && pdfStatus === "current",
       state: resolveDeliveryState({
         hasTicket: ticket !== null,
         hasPdf: document !== null,
+        pdfOutdated: pdfStatus === "outdated",
         hasEmail: email.length > 0,
         needsReconciliation: needsReconciliation(registration),
         sendCount: registrationSends.length,
@@ -183,6 +213,7 @@ async function loadRows(eventId: string): Promise<ManualDeliveryRow[]> {
       lastSentAt: latest?.sent_at ?? null,
       lastSendKind: latest?.send_kind ?? null,
       checkedIn: checkedIn.has(registration.id),
+      registrationUpdatedAt: registration.updated_at,
       sourceOrderIds,
     };
   });

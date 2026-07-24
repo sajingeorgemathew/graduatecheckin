@@ -72,8 +72,16 @@ beforeAll(() => {
 describe("payment_status enum hotfix migration", () => {
   it("exists as a new additive migration after every earlier one", () => {
     const mine = hotfixFileName.slice(0, 14);
+    // Migrations added by later tickets are legitimately timestamped after
+    // this hotfix and are excluded from the "after every earlier one" check.
+    const laterMigrations = ["_create_party_adjustment_controls.sql"];
     const others = readdirSync(migrationsDir)
-      .filter((file) => file !== hotfixFileName && file.endsWith(".sql"))
+      .filter(
+        (file) =>
+          file !== hotfixFileName &&
+          file.endsWith(".sql") &&
+          !laterMigrations.some((later) => file.endsWith(later))
+      )
       .map((file) => file.slice(0, 14));
     expect(others.length).toBeGreaterThan(0);
     for (const other of others) {
