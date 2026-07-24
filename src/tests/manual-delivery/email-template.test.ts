@@ -121,8 +121,8 @@ describe("personalization", () => {
 
   it("includes arrival and check-in guidance", () => {
     const email = renderTicketEmail(baseInput);
-    expect(email.html).toContain("45 minutes before");
-    expect(email.text).toContain("45 minutes before");
+    expect(email.html).toContain("12:00 PM sharp");
+    expect(email.text).toContain("12:00 PM sharp");
   });
 
   it("keeps the attachment instruction alongside the guidance", () => {
@@ -203,6 +203,34 @@ describe("party ticket and arrival guidance", () => {
     );
   });
 
+  it("asks the party to arrive at 12:00 PM sharp", () => {
+    const html = normalize(renderTicketEmail(baseInput).html);
+    expect(html).toContain("Arrival time");
+    expect(html).toContain("Please arrive at 12:00 PM sharp.");
+  });
+
+  it("explains that seating follows the confirmed registrations", () => {
+    const html = normalize(renderTicketEmail(baseInput).html);
+    expect(html).toContain(
+      "Seating is being arranged based on confirmed registrations, so graduates and their registered parties are requested to be on time."
+    );
+  });
+
+  it("still allows party members to arrive separately after the start", () => {
+    const html = normalize(renderTicketEmail(baseInput).html);
+    expect(html).toContain(
+      "Members of your party may still arrive separately."
+    );
+  });
+
+  it("no longer asks anyone to arrive 45 minutes early", () => {
+    const email = renderTicketEmail(baseInput);
+    for (const copy of [normalize(email.html), normalize(email.text)]) {
+      expect(copy).not.toContain("45 minutes");
+      expect(copy).not.toContain("before the ceremony begins");
+    }
+  });
+
   it("describes QR privacy accurately", () => {
     const html = normalize(renderTicketEmail(baseInput).html);
     expect(html).toContain(
@@ -229,6 +257,14 @@ describe("party ticket and arrival guidance", () => {
     expect(text).toContain("QR CODE PRIVACY");
     expect(text).toContain(
       "It is not a public website link and can only be validated through the Toronto Academy check-in system for this convocation."
+    );
+    expect(text).toContain("ARRIVAL TIME");
+    expect(text).toContain("Please arrive at 12:00 PM sharp.");
+    expect(text).toContain(
+      "Seating is being arranged based on confirmed registrations, so graduates and their registered parties are requested to be on time."
+    );
+    expect(text).toContain(
+      "Members of your party may still arrive separately."
     );
   });
 
