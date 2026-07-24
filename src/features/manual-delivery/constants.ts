@@ -114,11 +114,14 @@ export const EMAIL_GUIDANCE_SECTIONS: readonly EmailGuidanceSection[] = [
       "system for this convocation.",
   },
   {
-    heading: "Arrival reminder",
+    heading: "Arrival time",
     body:
-      "Please arrive at least 45 minutes before the ceremony begins. You " +
-      "may present the attached ticket on your phone or bring a printed " +
-      "copy.",
+      "Please arrive at 12:00 PM sharp. Seating is being arranged based on " +
+      "confirmed registrations, so graduates and their registered parties " +
+      "are requested to be on time. Members of your party may still arrive " +
+      "separately. Present the same ticket whenever another registered " +
+      "member of your party arrives. You may present the attached ticket " +
+      "on your phone or bring a printed copy.",
   },
 ] as const;
 
