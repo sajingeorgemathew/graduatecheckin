@@ -205,15 +205,17 @@ export function ManualAddForm() {
           ).map(([label, value, setter]) => (
             <label key={label} className="text-xs font-semibold text-navy">
               {label}
-              <select
+              <input
+                type="number"
+                min={0}
+                step={1}
                 value={value}
-                onChange={(event) => setter(Number(event.target.value))}
+                onChange={(event) => {
+                  const next = Math.floor(Number(event.target.value));
+                  setter(Number.isFinite(next) && next > 0 ? next : 0);
+                }}
                 className="mt-1 w-full rounded-md border border-navy/20 bg-white p-2 text-sm font-normal"
-              >
-                <option value={0}>0</option>
-                <option value={1}>1</option>
-                <option value={2}>2</option>
-              </select>
+              />
             </label>
           ))}
         </div>
@@ -235,8 +237,9 @@ export function ManualAddForm() {
           />
         </label>
         <p className="mt-2 text-xs text-navy/60">
-          At most two adult guests and two children in total. One ticket
-          covers the graduate and this whole party.
+          Enter any number of guests and children. One ticket covers the
+          graduate and this whole party. The number of adult guest names
+          cannot exceed the adult guest count.
         </p>
       </div>
 

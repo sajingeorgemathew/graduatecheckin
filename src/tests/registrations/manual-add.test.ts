@@ -167,25 +167,38 @@ describe("manual registration input", () => {
     ]);
   });
 
-  it("enforces the registration guest and child limits", () => {
+  it("imposes no business maximum on adult guests", () => {
     expect(
       manualRegistrationSchema.safeParse({ ...base, adultGuestCount: 3 })
         .success
-    ).toBe(false);
+    ).toBe(true);
+    expect(
+      manualRegistrationSchema.safeParse({ ...base, adultGuestCount: 12 })
+        .success
+    ).toBe(true);
+  });
+
+  it("imposes no business maximum on children", () => {
     expect(
       manualRegistrationSchema.safeParse({
         ...base,
-        children04: 2,
-        children510: 1,
-      }).success
-    ).toBe(false);
-    expect(
-      manualRegistrationSchema.safeParse({
-        ...base,
-        children04: 1,
-        children510: 1,
+        children04: 4,
+        children510: 5,
       }).success
     ).toBe(true);
+  });
+
+  it("still rejects negative and fractional counts", () => {
+    expect(
+      manualRegistrationSchema.safeParse({ ...base, adultGuestCount: -1 })
+        .success
+    ).toBe(false);
+    expect(
+      manualRegistrationSchema.safeParse({ ...base, children04: 1.5 }).success
+    ).toBe(false);
+    expect(
+      manualRegistrationSchema.safeParse({ ...base, children510: -2 }).success
+    ).toBe(false);
   });
 
   it("rejects more guest names than approved adult guests", () => {

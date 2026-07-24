@@ -32,7 +32,7 @@ import {
   buildTicketDocumentStoragePath,
 } from "./constants";
 import { buildSourceFingerprint, sha256Hex } from "./fingerprint";
-import { buildRegisteredParty } from "./party";
+import { buildRegisteredParty, partySnapshotMatchesParty } from "./party";
 import {
   buildEventDetails,
   buildTicketSettings,
@@ -176,19 +176,12 @@ export function evaluateStaleness(
     };
   }
   // Distinguish a registration change from an event change so the message
-  // tells the administrator what actually moved.
-  const storedParty = storedPartySnapshot as {
-    [key: string]: Json | undefined;
-  } | null;
-  const partyChanged =
-    storedParty === null ||
-    storedParty.total_party_count !== context.party.totalPartyCount ||
-    storedParty.graduate_name !== context.party.graduateName ||
-    storedParty.adult_guest_count !== context.party.adultGuestCount ||
-    storedParty.child_0_4_count !== context.party.children04Count ||
-    storedParty.child_5_10_count !== context.party.children510Count ||
-    JSON.stringify(storedParty.adult_guest_names ?? []) !==
-      JSON.stringify(context.party.adultGuestNames);
+  // tells the administrator what actually moved. The same snapshot comparison
+  // powers the Manual Delivery Desk's stale-PDF detection.
+  const partyChanged = !partySnapshotMatchesParty(
+    storedPartySnapshot,
+    context.party
+  );
 
   return partyChanged
     ? {

@@ -48,6 +48,7 @@ beforeAll(() => {
  */
 const LATER_MIGRATIONS = [
   "_fix_production_import_payment_status_enum.sql",
+  "_create_party_adjustment_controls.sql",
 ] as const;
 
 describe("manual production workflow migration", () => {

@@ -1414,6 +1414,37 @@ export type GraduateRosterCandidateInsert = {
 export type GraduateRosterCandidateUpdate =
   Partial<GraduateRosterCandidateInsert>;
 
+export type GraduationPartyAdjustmentRow = {
+  id: string;
+  event_id: string;
+  registration_id: string;
+  ticket_id: string | null;
+  idempotency_key: string;
+  reason: string;
+  payment_note: string | null;
+  before_party: Json;
+  after_party: Json;
+  changed_by: string | null;
+  changed_at: string;
+};
+
+export type GraduationPartyAdjustmentInsert = {
+  id?: string;
+  event_id: string;
+  registration_id: string;
+  ticket_id?: string | null;
+  idempotency_key: string;
+  reason: string;
+  payment_note?: string | null;
+  before_party: Json;
+  after_party: Json;
+  changed_by?: string | null;
+  changed_at?: string;
+};
+
+export type GraduationPartyAdjustmentUpdate =
+  Partial<GraduationPartyAdjustmentInsert>;
+
 export type Database = {
   public: {
     Tables: {
@@ -1579,9 +1610,30 @@ export type Database = {
         Update: GraduateRosterCandidateUpdate;
         Relationships: [];
       };
+      graduation_party_adjustments: {
+        Row: GraduationPartyAdjustmentRow;
+        Insert: GraduationPartyAdjustmentInsert;
+        Update: GraduationPartyAdjustmentUpdate;
+        Relationships: [];
+      };
     };
     Views: Record<string, never>;
     Functions: {
+      update_graduation_registration_party: {
+        Args: {
+          p_actor_user_id: string;
+          p_registration_id: string;
+          p_adult_guest_count: number;
+          p_adult_guest_names: Json;
+          p_children_0_4: number;
+          p_children_5_10: number;
+          p_reason: string;
+          p_payment_note: string | null;
+          p_idempotency_key: string;
+          p_expected_updated_at: string | null;
+        };
+        Returns: Json;
+      };
       apply_production_registration_import: {
         Args: { p_import_id: string; p_applied_by: string | null };
         Returns: Json;

@@ -38,11 +38,15 @@ function row(overrides: Partial<ManualDeliveryRow>): ManualDeliveryRow {
     documentId: "33333333-3333-4333-8333-333333333333",
     pdfFileName: "TAE-Convocation-2026-TAE-4KJ7-92BX-V1.pdf",
     documentVersion: 1,
+    pdfStatus: "current",
+    partyUpdatedSinceLastSend: false,
+    resendRecommended: false,
     state: "ready_to_send",
     sendCount: 0,
     lastSentAt: null,
     lastSendKind: null,
     checkedIn: false,
+    registrationUpdatedAt: "2026-07-24T00:00:00.000Z",
     sourceOrderIds: ["1001", "1002"],
     ...overrides,
   };
@@ -51,6 +55,7 @@ function row(overrides: Partial<ManualDeliveryRow>): ManualDeliveryRow {
 const READY = {
   hasTicket: true,
   hasPdf: true,
+  pdfOutdated: false,
   hasEmail: true,
   needsReconciliation: false,
   sendCount: 0,
@@ -92,6 +97,16 @@ describe("delivery state", () => {
     );
     expect(resolveDeliveryState({ ...READY, hasPdf: false })).toBe(
       "pdf_missing"
+    );
+  });
+
+  it("never treats an outdated PDF as ready to send", () => {
+    // The registration changed after the current PDF was generated.
+    expect(resolveDeliveryState({ ...READY, pdfOutdated: true })).toBe(
+      "pdf_outdated"
+    );
+    expect(resolveDeliveryState({ ...READY, pdfOutdated: true })).not.toBe(
+      "ready_to_send"
     );
   });
 });

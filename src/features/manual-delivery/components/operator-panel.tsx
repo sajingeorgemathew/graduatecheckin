@@ -18,6 +18,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useRef, useState } from "react";
 import type { ManualDeliveryDetail } from "../types";
+import { PartyEditor } from "./party-editor";
 
 type CopyKey = "recipient" | "subject" | "rich" | "plain" | "filename";
 
@@ -152,7 +153,49 @@ export function OperatorPanel({ detail }: { detail: ManualDeliveryDetail }) {
     }
   }
 
-  const canRecordSend = row.ticketId !== null && row.email !== null;
+  // An outdated or missing PDF must never be sent: the registration changed
+  // after the current PDF was generated, so it no longer matches the party.
+  const canRecordSend =
+    row.ticketId !== null &&
+    row.email !== null &&
+    row.pdfStatus === "current";
+
+  /**
+   * Regenerates the current PDF for the same, unchanged ticket. Reuses the
+   * existing generation endpoint; the ticket, its code and its QR never
+   * change. Used to recover after a party adjustment whose PDF step failed.
+   */
+  async function regeneratePdf() {
+    if (busy || row.ticketId === null) {
+      return;
+    }
+    setBusy(true);
+    setError(null);
+    setMessage(null);
+    try {
+      const response = await fetch("/api/admin/ticket-documents/generate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ticketId: row.ticketId }),
+      });
+      const payload: unknown = await response.json();
+      if (!response.ok) {
+        setError(errorMessageOf(payload));
+        return;
+      }
+      const summary = payload as { generatedCount?: number };
+      if ((summary.generatedCount ?? 0) < 1) {
+        setError("The updated PDF could not be generated. Try again.");
+        return;
+      }
+      setMessage("A new PDF version was generated for the same ticket.");
+      router.refresh();
+    } catch {
+      setError("The request failed. The PDF was not generated.");
+    } finally {
+      setBusy(false);
+    }
+  }
 
   const copyButton = (
     key: CopyKey,
@@ -242,6 +285,42 @@ export function OperatorPanel({ detail }: { detail: ManualDeliveryDetail }) {
           </ul>
         )}
       </div>
+
+      <PartyEditor row={row} />
+
+      {row.pdfStatus === "outdated" && (
+        <div className="rounded-lg border-2 border-gold bg-cream p-5">
+          <p className="text-sm font-semibold text-navy">
+            PDF outdated. The registered party changed after the current PDF
+            was generated, so the same QR is still valid but this PDF must not
+            be sent. Generate the updated PDF before sending or resending.
+          </p>
+          {row.ticketId !== null && (
+            <button
+              type="button"
+              disabled={busy}
+              onClick={() => void regeneratePdf()}
+              className="mt-3 rounded-md bg-navy px-4 py-2 text-sm font-semibold text-gold-light hover:bg-navy-light disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              {busy ? "Working..." : "Generate updated PDF"}
+            </button>
+          )}
+        </div>
+      )}
+
+      {row.partyUpdatedSinceLastSend && (
+        <div className="rounded-lg border border-navy/15 bg-white p-4 text-sm text-navy shadow-sm">
+          <p className="font-semibold">Party updated since last send</p>
+          <p className="mt-1 text-navy/75">
+            {row.resendRecommended
+              ? "Updated PDF ready - resend recommended. Record a resend with " +
+                "a reason to send the graduate the revised party details. The " +
+                "same ticket and QR remain valid."
+              : "Generate the updated PDF, then record a resend so the " +
+                "graduate receives the revised party details."}
+          </p>
+        </div>
+      )}
 
       <div className="rounded-lg border border-navy/10 bg-white p-5 shadow-sm">
         <h3 className="font-semibold text-navy">1. Copy and paste</h3>
